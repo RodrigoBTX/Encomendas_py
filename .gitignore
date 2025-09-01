@@ -1,0 +1,40 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# --- Virtualenv ---
+venv/
+ENV/
+env/
+.venv/
+
+# --- IDEs / Editores ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Arquivos temporários ---
+*.log
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
+
+# --- Configurações locais ---
+.env
+*.sqlite3
+
+# --- Frontend / HTML build (se usar ferramentas tipo npm) ---
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
