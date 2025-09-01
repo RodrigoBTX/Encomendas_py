@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
+    <title>Listagem de Encomendas</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        /* Evita quebra de linha nas células */
+        .table td, .table th {
+        white-space: nowrap; /* mantém texto na mesma linha */
+        }
+
+        /* Mantém a tabela responsiva com scroll horizontal */
+        .table-responsive {
+        overflow-x: auto;
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+<div class="container-fluid mt-3 position-relative">
+    <h2 class="d-inline">Lacoviana</h2>
+    <!-- Botão de configurações no canto superior direito -->
+    <a href="{{ url_for('login') }}" class="btn btn-primary d-flex align-items-center gap-2" style="position:absolute; top:10px; right:10px;">
+        <i class="bi bi-gear-fill"></i> Configurações
+    </a>
+</div>
+
+
+<div class="container-fluid py-4">
+    <h2 class="mb-4">📦 Listagem de Encomendas</h2>
+
+    <!-- Formulário de filtros -->
+    <form method="POST" class="row g-3">
+
+        <!-- Datas -->
+        <div class="col-md-3">
+            <label class="form-label">Data inicial</label>
+            <input type="date" class="form-control" name="data_ini" value="{{ filtros.data_ini }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Data final</label>
+            <input type="date" class="form-control" name="data_fin" value="{{ filtros.data_fin }}">
+        </div>
+
+        <!-- Cliente com lupa -->
+        <div class="col-md-3">
+            <label class="form-label">Cliente inicial</label>
+            <div class="input-group">
+                <input type="text" class="form-control" id="cliente_ini" name="cliente_ini" value="{{ filtros.cliente_ini }}">
+                <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#modalCliente" onclick="loadClientes('cliente_ini')">🔍</button>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Cliente final</label>
+            <div class="input-group">
+                <input type="text" class="form-control" id="cliente_fin" name="cliente_fin" value="{{ filtros.cliente_fin }}">
+                <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#modalCliente" onclick="loadClientes('cliente_fin')">🔍</button>
+            </div>
+        </div>
+
+        <!-- Tratamento com lupa -->
+        <div class="col-md-3">
+            <label class="form-label">Tratamento inicial</label>
+            <div class="input-group">
+                <input type="text" class="form-control" id="trat_ini" name="trat_ini" value="{{ filtros.trat_ini }}">
+                <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#modalTrat" onclick="loadTratamentos('trat_ini')">🔍</button>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Tratamento final</label>
+            <div class="input-group">
+                <input type="text" class="form-control" id="trat_fin" name="trat_fin" value="{{ filtros.trat_fin }}">
+                <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#modalTrat" onclick="loadTratamentos('trat_fin')">🔍</button>
+            </div>
+        </div>
+
+        <!-- Requisição e encomenda -->
+        <div class="col-md-3">
+            <label class="form-label">Requisição</label>
+            <input type="text" class="form-control" name="requisicao" value="{{ filtros.requisicao }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Encomenda inicial</label>
+            <input type="number" class="form-control" name="enc_ini" value="{{ filtros.enc_ini }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Encomenda final</label>
+            <input type="number" class="form-control" name="enc_fin" value="{{ filtros.enc_fin }}">
+        </div>
+
+        <!-- Tipo, Subtipo, Gama, Linha -->
+        <div class="col-md-3">
+            <label class="form-label">Tipo</label>
+            <input type="text" class="form-control" name="tipo" value="{{ filtros.tipo }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Subtipo</label>
+            <input type="text" class="form-control" name="subtipo" value="{{ filtros.subtipo }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Gama de cor</label>
+            <input type="text" class="form-control" name="gama_cor" value="{{ filtros.gama_cor }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Linha</label>
+            <select class="form-select" id="linha" name="linha">
+                <option value=""></option> <!-- Default vazio -->
+            </select>
+        </div>
+
+
+        <!-- Ordenação -->
+        <div class="col-md-6">
+            <label class="form-label d-block">Ordenar por</label>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="ordem" value="1" id="ordem1" {% if filtros.ordem == "1" %}checked{% endif %}>
+                <label class="form-check-label" for="ordem1">Cliente / Tratamento</label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="ordem" value="2" id="ordem2" {% if filtros.ordem == "2" %}checked{% endif %}>
+                <label class="form-check-label" for="ordem2">Tratamento / Cliente</label>
+            </div>
+        </div>
+
+        <!-- Botão Pesquisar -->
+        <div class="col-12">
+            <button type="submit" class="btn btn-primary">Pesquisar</button>
+            <button type="button" class="btn btn-secondary" onclick="limparFiltros()">Limpar</button>
+        </div>
+    </form>
+
+    {% if error_msg %}
+        <div class="alert alert-danger mt-3">
+            {{ error_msg }}
+        </div>
+    {% endif %}
+
+    <!-- Resultados -->    
+    <div class="mt-4">
+        {% if rows %}
+            <div class="table-responsive" style="max-height:600px; overflow-y:auto;">
+                <table class="table table-striped table-bordered" style="table-layout:auto; width:100%;">
+                    <thead class="table-dark">
+                        <tr>
+                            {% for col in columns %}
+                            <th style="position: sticky; top: 0; background-color: #343a40; color: #fff; z-index: 10;">
+                                {{ col }}
+                            </th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            {% for col in row %}
+                            <td>{{ col }}</td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-warning">Sem resultados para os filtros selecionados.</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal único para tratamentos -->
+<div class="modal fade" id="modalTrat" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Selecionar Tratamento</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="searchTrat" class="form-control mb-2" placeholder="Pesquisar..." onkeyup="searchTrat()">
+        <ul class="list-group" id="tratList"></ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal único para clientes -->
+<div class="modal fade" id="modalCliente" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Selecionar Cliente</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="searchCliente" class="form-control mb-2" placeholder="Pesquisar..." onkeyup="searchCliente()">
+        <ul class="list-group" id="clienteList"></ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Scripts no final do body -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+let currentInputId = "";
+
+// Tratamentos
+function loadTratamentos(inputId){
+    const list = document.getElementById('tratList');
+    const searchInput = document.getElementById('searchTrat');
+    searchInput.value = "";  // limpa a pesquisa
+    list.innerHTML = '';     // limpa a lista
+
+    fetch('/tratamentos')
+    .then(response => response.json())
+    .then(data => {
+        data.forEach(trat => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item list-group-item-action';
+            li.textContent = trat;
+            li.onclick = () => {
+                document.getElementById(inputId).value = trat;
+                bootstrap.Modal.getInstance(document.getElementById('modalTrat')).hide();
+            };
+            list.appendChild(li);
+        });
+    });
+}
+
+function searchTrat(){
+    let filtro = document.getElementById('searchTrat').value.toLowerCase();
+    let items = document.querySelectorAll('#tratList li');
+    items.forEach(li => {
+        li.style.display = li.textContent.toLowerCase().includes(filtro) ? '' : 'none';
+    });
+}
+
+
+// Clientes
+function loadClientes(inputId){
+    const list = document.getElementById('clienteList');
+    const searchInput = document.getElementById('searchCliente');
+    searchInput.value = "";  // limpa a pesquisa
+    list.innerHTML = '';     // limpa a lista
+
+    fetch('/clientes')
+    .then(response => response.json())
+    .then(data => {
+        data.forEach(cliente => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item list-group-item-action';
+            li.textContent = cliente;
+            li.onclick = () => {
+                document.getElementById(inputId).value = cliente;
+                bootstrap.Modal.getInstance(document.getElementById('modalCliente')).hide();
+            };
+            list.appendChild(li);
+        });
+    });
+}
+
+function searchCliente(){
+    let filtro = document.getElementById('searchCliente').value.toLowerCase();
+    let items = document.querySelectorAll('#clienteList li');
+    items.forEach(li => {
+        li.style.display = li.textContent.toLowerCase().includes(filtro) ? '' : 'none';
+    });
+}
+
+// Carregar opções da combobox linha
+function loadLinhas(){
+    fetch('/linhas')
+    .then(response => response.json())
+    .then(data => {
+        let select = document.getElementById('linha');
+        select.innerHTML = '<option value=""></option>'; // Default vazio
+        data.forEach(item => {
+            let opt = document.createElement('option');
+            opt.value = item.value;
+            opt.textContent = item.label;
+            // manter seleção anterior
+            if (item.value === "{{ filtros.linha }}") opt.selected = true;
+            select.appendChild(opt);
+        });
+    });
+}
+
+function limparFiltros() {
+    const hoje = new Date();
+    const anoAtual = hoje.getFullYear();
+    const dataIniDefault = `${anoAtual}-01-01`;
+    const dataFinDefault = hoje.toISOString().slice(0,10);
+
+    // Definir valores default
+    document.querySelector('input[name="data_ini"]').value = dataIniDefault;
+    document.querySelector('input[name="data_fin"]').value = dataFinDefault;
+    document.querySelector('input[name="enc_ini"]').value = 0;
+    document.querySelector('input[name="enc_fin"]').value = 99999999;
+
+    // Restaurar cliente e tratamento com defaults vindos do Flask
+    document.querySelector('input[name="cliente_ini"]').value = "";
+    document.querySelector('input[name="cliente_fin"]').value = "";
+    document.querySelector('input[name="trat_ini"]').value = "";
+    document.querySelector('input[name="trat_fin"]').value = "";
+
+    // Resetar selects (Linha)
+    document.querySelectorAll('select').forEach(select => {
+        select.selectedIndex = 0;
+    });
+
+    // Resetar radio buttons (ordenar)
+    document.querySelectorAll('input[type="radio"]').forEach(radio => {
+        radio.checked = false;
+    });
+
+    // Limpar tabela de resultados
+    const tbody = document.querySelector('table tbody');
+    if(tbody) tbody.innerHTML = '';
+
+    // Limpar mensagem de "Sem resultados"
+    const alert = document.querySelector('.alert');
+    if(alert) alert.remove();
+}
+
+// Chama no carregamento da página
+window.onload = function(){
+    loadLinhas();
+};
+
+</script>
+</body>
+</html>
