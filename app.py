@@ -247,6 +247,237 @@ def linhas():
 
 
 
+# executar sps para a impressão
+def executar_sps(filtros):
+    # filtros = request.form.to_dict()
+
+    try:
+        conn = criar_conexao()
+        cursor = conn.cursor()
+
+        # 1. Clientes
+        cursor.execute("""
+            EXEC sp_clientes 
+                @data_ini=?, @data_fin=?, 
+                @cliente_ini=?, @cliente_fin=?, 
+                @trat_ini=?, @trat_fin=?, 
+                @req=?, 
+                @enc_ini=?, @enc_fin=?, 
+                @tipo=?, @subtipo=?, 
+                @gamacor=?, @linha=?, @ordem=? 
+        """, (
+            filtros.get("data_ini"),
+            filtros.get("data_fin"),
+            filtros.get("cliente_ini"),
+            filtros.get("cliente_fin"),
+            filtros.get("trat_ini"),
+            filtros.get("trat_fin"),
+            filtros.get("requisicao"),
+            filtros.get("enc_ini"),
+            filtros.get("enc_fin"),
+            filtros.get("tipo"),
+            filtros.get("subtipo"),
+            filtros.get("gama_cor"),
+            filtros.get("linha"),
+            filtros.get("ordem") or 1
+        ))
+        clientes = cursor.fetchall()
+        clientes_cols = [c[0] for c in cursor.description]
+
+        resultado = []
+        for cliente in clientes:
+            cliente_dict = dict(zip(clientes_cols, cliente))
+            cliente_nome = cliente_dict.get("cliente")
+            tratamento_cliente = cliente_dict.get("tratamento")
+
+            # 2. Encomendas desse cliente
+            cursor.execute("""
+                EXEC sp_encomendas 
+                    @data_ini=?, @data_fin=?, 
+                    @req=?, 
+                    @enc_ini=?, @enc_fin=?, 
+                    @tipo=?, @subtipo=?, 
+                    @gamacor=?, @linha=?, 
+                    @cliente=?, @tratamento=? 
+            """, (
+                filtros.get("data_ini"),
+                filtros.get("data_fin"),
+                filtros.get("requisicao"),
+                filtros.get("enc_ini"),
+                filtros.get("enc_fin"),
+                filtros.get("tipo"),
+                filtros.get("subtipo"),
+                filtros.get("gama_cor"),
+                filtros.get("linha"),
+                cliente_nome,
+                tratamento_cliente
+            ))
+            encomendas = cursor.fetchall()
+            encomendas_cols = [c[0] for c in cursor.description]
+
+            encomendas_data = []
+            for enc in encomendas:
+                enc_dict = dict(zip(encomendas_cols, enc))
+                 # Atenção: o SP encomendas já devolve obrano e obranome
+                obrano_enc = enc_dict.get("obrano")       # número da encomenda
+                obranome_enc = enc_dict.get("obranome")   # nome da obra -> vai no @req
+                trat_enc = enc_dict.get("tratamento")
+                cliente_nome = cliente_dict.get("cliente")
+
+                # 3. Linhas da encomenda
+                cursor.execute("""
+                    EXEC sp_linhas 
+                        @req=?, 
+                        @enc=?, 
+                        @tipo=?, @subtipo=?, 
+                        @gamacor=?, @linha=?, 
+                        @cliente=?, @tratamento=? 
+                """, (
+                    obranome_enc,
+                    obrano_enc,
+                    filtros.get("tipo"),
+                    filtros.get("subtipo"),
+                    filtros.get("gama_cor"),
+                    filtros.get("linha"),
+                    cliente_nome,
+                    trat_enc
+                ))
+                linhas = cursor.fetchall()
+                linhas_cols = [c[0] for c in cursor.description]
+
+                linhas_data = [dict(zip(linhas_cols, l)) for l in linhas]
+
+                encomendas_data.append({
+                    "dados": enc_dict,
+                    "linhas": linhas_data
+                })
+
+            resultado.append({
+                "cliente": cliente_dict,
+                "encomendas": encomendas_data
+            })
+
+        cursor.close()
+        conn.close()
+        return resultado
+    
+    except Exception as e:
+        raise(Exception(f"Erro ao executar SPs: {e}"))
+
+
+# impressao em PDF
+
+from flask import make_response
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.pdfgen import canvas
+from datetime import datetime
+import io
+
+def cabecalho_rodape(canvas, doc, filtros):
+    canvas.saveState()
+
+    # Cabeçalho
+    agora = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
+    titulo = "Lista de Encomendas LACOVIANA - Trat. e Lac. Alumínios de Viana, Lda"
+
+    canvas.setFont("Helvetica-Bold", 10)
+    canvas.drawString(40, A4[1] - 40, agora)  # data/hora à esquerda
+    canvas.drawCentredString(A4[0] / 2, A4[1] - 40, titulo)
+
+    # Sub-info (datas, clientes, tratamentos)
+    canvas.setFont("Helvetica", 8)
+    canvas.drawString(40, A4[1] - 55, f"Datas: {filtros.get('data_ini')} a {filtros.get('data_fin')}")
+    canvas.drawString(40, A4[1] - 67, f"Clientes: {filtros.get('cliente_ini')} a {filtros.get('cliente_fin')}")
+    canvas.drawString(40, A4[1] - 79, f"Tratamentos: {filtros.get('trat_ini')} a {filtros.get('trat_fin')}")
+
+    # Rodapé com numeração
+    pagina = canvas.getPageNumber()
+    canvas.drawRightString(A4[0] - 40, 20, f"Página {pagina}")
+
+    canvas.restoreState()
+
+
+@app.route("/imprimir", methods=["POST"])
+def imprimir():
+    filtros = request.form.to_dict()
+
+    # Aqui entra a lógica dos SPs -> resultado (clientes → encomendas → linhas)
+    resultado = executar_sps(filtros)  # <--- função tua que já está feita
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=100, bottomMargin=40)
+    styles = getSampleStyleSheet()
+    elements = []
+
+    for cliente in resultado:
+        cliente_nome = cliente["cliente"].get("cliente")
+
+        elements.append(Paragraph(f"<b>{cliente_nome}</b>", styles["Heading3"]))
+
+        for enc in cliente["encomendas"]:
+            enc_dados = enc["dados"]
+            linhas = enc["linhas"]
+
+            # Cabeçalho da encomenda
+            elements.append(Paragraph(
+                f"Encomenda: {enc_dados.get('obrano')} &nbsp;&nbsp; "
+                f"Requisição: {enc_dados.get('obranome')} &nbsp;&nbsp; "
+                f"Acabamento: {enc_dados.get('acabamento', '')} &nbsp;&nbsp; "
+                f"Micragem: {enc_dados.get('micragem', '')} &nbsp;&nbsp; "
+                f"Conf: {enc_dados.get('conf', '')}",
+                styles["Normal"]
+            ))
+            elements.append(Spacer(1, 6))
+
+            # Tabela das linhas
+            if linhas:
+                data = [["Artigo", "Descrição", "Qtd", "Medida", "Metros", "Área"]]
+                for l in linhas:
+                    data.append([
+                        l.get("artigo", ""),
+                        l.get("descricao", ""),
+                        l.get("qtd", ""),
+                        l.get("medida", ""),
+                        l.get("metros", ""),
+                        l.get("area", "")
+                    ])
+
+                tabela = Table(data, repeatRows=1)
+                tabela.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.grey),
+                    ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                    ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('ALIGN', (2,0), (-1,-1), 'RIGHT')
+                ]))
+                elements.append(tabela)
+
+            # Totais
+            elements.append(Paragraph(
+                f"<b>Total Qtd: {enc_dados.get('total_qtd', 0)} &nbsp;&nbsp; "
+                f"Total m2: {enc_dados.get('total_area', 0)}</b>",
+                styles["Normal"]
+            ))
+            elements.append(Spacer(1, 12))
+
+        elements.append(PageBreak())
+
+    doc.build(elements, onFirstPage=lambda c,d: cabecalho_rodape(c,d,filtros),
+                        onLaterPages=lambda c,d: cabecalho_rodape(c,d,filtros))
+
+    pdf = buffer.getvalue()
+    buffer.close()
+
+    response = make_response(pdf)
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = 'inline; filename=encomendas.pdf'
+    return response
+
+
+
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -258,7 +489,7 @@ def index():
     data_ini_default = f"{hoje.year}-01-01"
     data_fin_default = hoje.isoformat()       # data de hoje, formato YYYY-MM-DD
 
-    # Conexão ao banco
+    # Conexão a bd
     #conn = pyodbc.connect(conn_str)
     # Ler configurações da BD
     dsn, db, user, password = ler_config()
