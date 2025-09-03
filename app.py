@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify,redirect, url_for, session
+from flask import Flask, render_template, request, jsonify,redirect, url_for, session, make_response
 import pyodbc
 import pandas as pd
 import configparser
@@ -51,7 +51,7 @@ def salvar_config(dsn,database, user, password):
 
 
 # Usa o DSN criado no Windows
-# conn_str = "DSN=Lacoviana;UID=admin-btx;PWD=093N3mmb!;DATABASE=PHC_20240310"
+# conn_str = "DSN=Lacoviana;UID=admin-btx;PWD=;DATABASE=PHC_20240310"
 def criar_conexao():
     dsn, db, user, password = ler_config()
     if not all([dsn,db, user, password]):
@@ -141,7 +141,7 @@ def get_encomendas(filtros):
 # Login via formulário
 # ------------------------------
 ADMIN_USER = "sa"
-ADMIN_PASSWORD = "093N3mmb!"
+ADMIN_PASSWORD = "admin-btx"
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -367,106 +367,151 @@ def executar_sps(filtros):
 
 # impressao em PDF
 
-from flask import make_response
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+from flask import make_response, request
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus.flowables import HRFlowable
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.pdfgen import canvas
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from datetime import datetime
 import io
 
-def cabecalho_rodape(canvas, doc, filtros):
-    canvas.saveState()
+def cabecalho(canvas, doc, filtros):
+    largura, altura = A4
+    agora = datetime.now().strftime("%d-%m-%Y %H:%M")
 
-    # Cabeçalho
-    agora = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
-    titulo = "Lista de Encomendas LACOVIANA - Trat. e Lac. Alumínios de Viana, Lda"
+    canvas.setLineWidth(0.8)
+    canvas.line(30, altura - 40, largura - 30, altura - 40)   # barra superior
+    canvas.setFont("Helvetica-Bold", 11)
+    canvas.drawString(35, altura - 55, "Lista de Encomendas")
+    canvas.drawRightString(largura - 35, altura - 55,
+                           "LACOVIANA - Trat. e Lac. Alumínios de Viana, Lda")
+    canvas.line(30, altura - 70, largura - 30, altura - 70)   # barra inferior
 
-    canvas.setFont("Helvetica-Bold", 10)
-    canvas.drawString(40, A4[1] - 40, agora)  # data/hora à esquerda
-    canvas.drawCentredString(A4[0] / 2, A4[1] - 40, titulo)
-
-    # Sub-info (datas, clientes, tratamentos)
     canvas.setFont("Helvetica", 8)
-    canvas.drawString(40, A4[1] - 55, f"Datas: {filtros.get('data_ini')} a {filtros.get('data_fin')}")
-    canvas.drawString(40, A4[1] - 67, f"Clientes: {filtros.get('cliente_ini')} a {filtros.get('cliente_fin')}")
-    canvas.drawString(40, A4[1] - 79, f"Tratamentos: {filtros.get('trat_ini')} a {filtros.get('trat_fin')}")
+    canvas.drawString(35, altura - 85, agora)
+    canvas.drawRightString(largura - 35, altura - 85,
+                           f"Datas: {filtros.get('data_ini')} a {filtros.get('data_fin')}")
+    canvas.drawRightString(largura - 35, altura - 95,
+                           f"Clientes: {filtros.get('cliente_ini')} a {filtros.get('cliente_fin')}")
+    canvas.drawRightString(largura - 35, altura - 105,
+                           f"Tratamentos: {filtros.get('trat_ini')} a {filtros.get('trat_fin')}")
 
-    # Rodapé com numeração
-    pagina = canvas.getPageNumber()
-    canvas.drawRightString(A4[0] - 40, 20, f"Página {pagina}")
+    canvas.line(30, altura - 115, largura - 30, altura - 115)  # separador final do header
 
-    canvas.restoreState()
+def rodape(canvas, doc):
+    largura, _ = A4
+    canvas.setFont("Helvetica", 8)
+    canvas.drawCentredString(largura / 2, 20, f"Página {doc.page}")
 
+# função para formatar números
+def format_num(value):
+    try:
+        num = float(value)
+        if num.is_integer():
+            return str(int(num))  # 1.0000 → 1
+        return f"{num:.3f}".rstrip('0').rstrip('.')  # 1.2450 → 1.245
+    except (TypeError, ValueError):
+        return str(value or "")
 
 @app.route("/imprimir", methods=["POST"])
 def imprimir():
     filtros = request.form.to_dict()
-
-    # Aqui entra a lógica dos SPs -> resultado (clientes → encomendas → linhas)
-    resultado = executar_sps(filtros)  # <--- função tua que já está feita
+    resultado = executar_sps(filtros)  # lógica dos SPs já implementada
 
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=100, bottomMargin=40)
+    doc = SimpleDocTemplate(buffer, pagesize=A4,
+                            leftMargin=30, rightMargin=30,
+                            topMargin=130, bottomMargin=50)
+
     styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="BodySmallBold", fontSize=9, leading=11, fontName="Helvetica-Bold"))
+    styles.add(ParagraphStyle(name="BodySmall", fontSize=8, leading=10))
+
     elements = []
 
     for cliente in resultado:
-        cliente_nome = cliente["cliente"].get("cliente")
+        cliente_nome = cliente["cliente"].get("cliente", "")
+        local = cliente["cliente"].get("local", "")
 
-        elements.append(Paragraph(f"<b>{cliente_nome}</b>", styles["Heading3"]))
+        
 
         for enc in cliente["encomendas"]:
-            enc_dados = enc["dados"]
+            d = enc["dados"]
             linhas = enc["linhas"]
 
-            # Cabeçalho da encomenda
-            elements.append(Paragraph(
-                f"Encomenda: {enc_dados.get('obrano')} &nbsp;&nbsp; "
-                f"Requisição: {enc_dados.get('obranome')} &nbsp;&nbsp; "
-                f"Acabamento: {enc_dados.get('acabamento', '')} &nbsp;&nbsp; "
-                f"Micragem: {enc_dados.get('micragem', '')} &nbsp;&nbsp; "
-                f"Conf: {enc_dados.get('conf', '')}",
-                styles["Normal"]
-            ))
-            elements.append(Spacer(1, 6))
+            # Cliente à esquerda, Local à direita
+            cliente_table = Table([
+                [Paragraph(f"<b>{cliente_nome}</b>", styles["BodySmallBold"]),
+                Paragraph(f"<b>{str(local)}</b>", styles["BodySmallBold"])]
+            ], colWidths=[300, 200])
+            cliente_table.setStyle(TableStyle([
+                ('ALIGN', (1,0), (1,0), 'RIGHT'),
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ]))
+            elements.append(cliente_table)
+            elements.append(Spacer(1, 4))
 
-            # Tabela das linhas
+            # Encomenda = cabeçalho + linha numa só tabela
+            data_encom = [["Encomenda", "Requisição", "Acabamento", "Micragem", "Conf"], [
+                str(d.get("obrano","") or ""),
+                str(d.get("obranome","") or ""),
+                str(d.get("obs","") or ""),
+                str(d.get("micro","") or ""),
+                str(d.get("s_n","") or "")
+            ]]
+            encom_table = Table(data_encom, colWidths=[70, 120, 150, 70, 50], repeatRows=1)
+            encom_table.setStyle(TableStyle([
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0,0), (-1,0), 9),
+                ('ALIGN', (0,0), (-1,0), 'CENTER'),
+                ('FONTSIZE', (0,1), (-1,-1), 8),
+                ('ALIGN', (0,1), (-1,-1), 'LEFT'),
+            ]))
+            elements.append(encom_table)
+            elements.append(Spacer(1, 4))
+
             if linhas:
                 data = [["Artigo", "Descrição", "Qtd", "Medida", "Metros", "Área"]]
                 for l in linhas:
                     data.append([
-                        l.get("artigo", ""),
-                        l.get("descricao", ""),
-                        l.get("qtd", ""),
-                        l.get("medida", ""),
-                        l.get("metros", ""),
-                        l.get("area", "")
+                        str(l.get("ref","") or ""),
+                        str(l.get("design","") or ""),
+                        format_num(l.get("qtt")),
+                        format_num(l.get("u_medida1","")),
+                        format_num(l.get("u_mts")),
+                        format_num(l.get("u_mts2"))
                     ])
-
-                tabela = Table(data, repeatRows=1)
-                tabela.setStyle(TableStyle([
-                    ('BACKGROUND', (0,0), (-1,0), colors.grey),
-                    ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-                    ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+                linhas_table = Table(data, colWidths=[60,200,40,60,60,60],
+                                     rowHeights=14, repeatRows=1)
+                linhas_table.setStyle(TableStyle([
                     ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                    ('ALIGN', (2,0), (-1,-1), 'RIGHT')
+                    ('FONTSIZE', (0,0), (-1,0), 8),
+                    ('ALIGN', (0,0), (-1,0), 'CENTER'),
+                    ('FONTSIZE', (0,1), (-1,-1), 8),
+                    ('ALIGN', (2,1), (-1,-1), 'RIGHT'),
                 ]))
-                elements.append(tabela)
+                elements.append(linhas_table)
+                elements.append(Spacer(1, 6))
 
-            # Totais
-            elements.append(Paragraph(
-                f"<b>Total Qtd: {enc_dados.get('total_qtd', 0)} &nbsp;&nbsp; "
-                f"Total m2: {enc_dados.get('total_area', 0)}</b>",
-                styles["Normal"]
-            ))
-            elements.append(Spacer(1, 12))
+            # Totais alinhados à direita
+            totais_table = Table([[
+                f"Total Qtd: {format_num(d.get('qtt',0))}    Total m2: {format_num(d.get('m2',0))}"
+            ]], colWidths=[530])
+            totais_table.setStyle(TableStyle([
+                ('FONTNAME', (0,0), (-1,-1), 'Helvetica-Bold'),
+                ('ALIGN', (0,0), (-1,-1), 'RIGHT'),
+                ('FONTSIZE', (0,0), (-1,-1), 9),
+            ]))
+            elements.append(totais_table)
+            elements.append(Spacer(1, 6))
 
-        elements.append(PageBreak())
+            elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.black))
+            elements.append(Spacer(1, 8))
 
-    doc.build(elements, onFirstPage=lambda c,d: cabecalho_rodape(c,d,filtros),
-                        onLaterPages=lambda c,d: cabecalho_rodape(c,d,filtros))
+    doc.build(elements,
+              onFirstPage=lambda c, d: (cabecalho(c, d, filtros), rodape(c, d)),
+              onLaterPages=lambda c, d: (cabecalho(c, d, filtros), rodape(c, d)))
 
     pdf = buffer.getvalue()
     buffer.close()
