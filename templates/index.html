@@ -33,7 +33,7 @@
     <h2 class="mb-4">📦 Listagem de Encomendas</h2>
 
     <!-- Formulário de filtros -->
-    <form method="POST" class="row g-3">
+    <form id="filtrosForm" method="POST" class="row g-3">
 
         <!-- Datas -->
         <div class="col-md-3">
@@ -128,8 +128,8 @@
         <!-- Botão Pesquisar -->
         <div class="col-12">
             <button type="submit" class="btn btn-primary">Pesquisar</button>
-            <button type="button" class="btn btn-secondary" onclick="limparFiltros()">Limpar</button>
-            <button type="submit" formaction="/imprimir" formtarget="_blank" class="btn btn-success">Imprimir</button>
+            <button type="button" class="btn btn-secondary" onclick="limparFiltros()">Limpar</button>            
+            <button type="button" id="btnImprimir" class="btn btn-success">Gerar PDF</button>
         </div>
     </form>
 
@@ -325,10 +325,47 @@ function limparFiltros() {
     if(alert) alert.remove();
 }
 
+
+
 // Chama no carregamento da página
 window.onload = function(){
     loadLinhas();
+
+     // Listener do botão imprimir
+    const btn = document.getElementById('btnImprimir');
+    btn.addEventListener('click', function(e) {
+        e.preventDefault(); // bloqueia qualquer ação padrão
+
+        const tbody = document.querySelector('table tbody');
+        const linhas = tbody ? Array.from(tbody.children).filter(tr => tr.offsetParent !== null) : [];
+
+        if (!tbody || linhas.length === 0) {
+            alert("Não existem resultados para imprimir.");
+            return; // interrompe aqui, nada será feito
+        }
+
+        // Se houver resultados, segue o fluxo normal
+        const form = document.getElementById('filtrosForm');
+        const formData = new FormData(form);
+
+        fetch('/imprimir', { method: 'POST', body: formData })
+            .then(response => response.blob())
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                iframe.src = url;
+                document.body.appendChild(iframe);
+                iframe.onload = function() {
+                    iframe.contentWindow.focus();
+                    iframe.contentWindow.print();
+            }
+            })
+            .catch(err => console.error(err));
+    });
 };
+
+
 
 </script>
 </body>

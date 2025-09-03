@@ -7,8 +7,14 @@ import base64
 import webbrowser
 from threading import Timer
 
+
 app = Flask(__name__)
+# app = Flask(__name__, template_folder="templates")
 app.secret_key = os.urandom(24)  # Chave segura para sessões
+
+import os
+print("Templates folder usada pelo Flask:", app.template_folder)
+
 
 # Pasta fixa para configs
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), "LacovianaConfig")
@@ -368,7 +374,7 @@ def executar_sps(filtros):
 # impressao em PDF
 
 from flask import make_response, request
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether
 from reportlab.platypus.flowables import HRFlowable
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -404,13 +410,12 @@ def rodape(canvas, doc):
     canvas.setFont("Helvetica", 8)
     canvas.drawCentredString(largura / 2, 20, f"Página {doc.page}")
 
-# função para formatar números
 def format_num(value):
     try:
         num = float(value)
         if num.is_integer():
-            return str(int(num))  # 1.0000 → 1
-        return f"{num:.3f}".rstrip('0').rstrip('.')  # 1.2450 → 1.245
+            return str(int(num))
+        return f"{num:.3f}".rstrip('0').rstrip('.')
     except (TypeError, ValueError):
         return str(value or "")
 
@@ -434,25 +439,20 @@ def imprimir():
         cliente_nome = cliente["cliente"].get("cliente", "")
         local = cliente["cliente"].get("local", "")
 
-        
-
         for enc in cliente["encomendas"]:
             d = enc["dados"]
             linhas = enc["linhas"]
 
-            # Cliente à esquerda, Local à direita
+            # Mantém cliente + info da encomenda juntos
             cliente_table = Table([
                 [Paragraph(f"<b>{cliente_nome}</b>", styles["BodySmallBold"]),
-                Paragraph(f"<b>{str(local)}</b>", styles["BodySmallBold"])]
+                 Paragraph(f"<b>{str(local)}</b>", styles["BodySmallBold"])]
             ], colWidths=[300, 200])
             cliente_table.setStyle(TableStyle([
                 ('ALIGN', (1,0), (1,0), 'RIGHT'),
                 ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ]))
-            elements.append(cliente_table)
-            elements.append(Spacer(1, 4))
 
-            # Encomenda = cabeçalho + linha numa só tabela
             data_encom = [["Encomenda", "Requisição", "Acabamento", "Micragem", "Conf"], [
                 str(d.get("obrano","") or ""),
                 str(d.get("obranome","") or ""),
@@ -468,9 +468,10 @@ def imprimir():
                 ('FONTSIZE', (0,1), (-1,-1), 8),
                 ('ALIGN', (0,1), (-1,-1), 'LEFT'),
             ]))
-            elements.append(encom_table)
-            elements.append(Spacer(1, 4))
 
+            elements.append(KeepTogether([cliente_table, Spacer(1,4), encom_table, Spacer(1,4)]))
+
+            # Linhas podem quebrar naturalmente, cabeçalho se repete
             if linhas:
                 data = [["Artigo", "Descrição", "Qtd", "Medida", "Metros", "Área"]]
                 for l in linhas:
@@ -492,22 +493,17 @@ def imprimir():
                     ('ALIGN', (2,1), (-1,-1), 'RIGHT'),
                 ]))
                 elements.append(linhas_table)
-                elements.append(Spacer(1, 6))
+                elements.append(Spacer(1,6))
 
-            # Totais alinhados à direita
-            totais_table = Table([[
-                f"Total Qtd: {format_num(d.get('qtt',0))}    Total m2: {format_num(d.get('m2',0))}"
-            ]], colWidths=[530])
+            # Totais + separador juntos
+            totais_table = Table([[f"Total Qtd: {format_num(d.get('qtt',0))}    Total m2: {format_num(d.get('m2',0))}"]],
+                                 colWidths=[530])
             totais_table.setStyle(TableStyle([
                 ('FONTNAME', (0,0), (-1,-1), 'Helvetica-Bold'),
                 ('ALIGN', (0,0), (-1,-1), 'RIGHT'),
                 ('FONTSIZE', (0,0), (-1,-1), 9),
             ]))
-            elements.append(totais_table)
-            elements.append(Spacer(1, 6))
-
-            elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.black))
-            elements.append(Spacer(1, 8))
+            elements.append(KeepTogether([totais_table, Spacer(1,6), HRFlowable(width="100%", thickness=0.5, color=colors.black), Spacer(1,8)]))
 
     doc.build(elements,
               onFirstPage=lambda c, d: (cabecalho(c, d, filtros), rodape(c, d)),
@@ -529,6 +525,8 @@ def index():
     from datetime import date
     import pyodbc
     import pandas as pd
+  
+    
     # Data inicial default: 1º de janeiro do ano atual
     hoje = date.today()
     data_ini_default = f"{hoje.year}-01-01"
@@ -620,4 +618,7 @@ if __name__ == "__main__":
     # Abrir navegador automaticamente
     Timer(1, lambda: webbrowser.open(f"http://127.0.0.1:{port}")).start()
     app.run(debug=False, port=port)
+
+    # Rodar Flask em debug=True garante reload e sem cache de templates
+    # app.run(debug=True, port=port, use_reloader=True)
 
