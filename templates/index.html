@@ -127,7 +127,7 @@
 
         <!-- Botão Pesquisar -->
         <div class="col-12">
-            <button type="submit" class="btn btn-primary">Pesquisar</button>
+            <button type="submit" id="btnPesquisar" class="btn btn-primary">Pesquisar</button>
             <button type="button" class="btn btn-secondary" onclick="limparFiltros()">Limpar</button>            
             <button type="button" id="btnImprimir" class="btn btn-success">Imprimir</button>
             <div id="loading" style="display:none; margin-top:10px;">
@@ -340,6 +340,7 @@ window.onload = function(){
     loadLinhas();
 
      // Listener do botão imprimir
+     const btnPesquisar = document.getElementById('btnPesquisar');
     const btn = document.getElementById('btnImprimir');
     const loading = document.getElementById('loading');
 
@@ -376,6 +377,9 @@ window.onload = function(){
                 iframe.onload = function() {
                     iframe.contentWindow.focus();
                     iframe.contentWindow.print();
+
+                // depois de imprimir
+                status.textContent = "Impressão concluída com sucesso!";
             }
             })
             .catch(err => console.error(err));
