@@ -8,13 +8,16 @@ import webbrowser
 from threading import Timer
 
 
+
 app = Flask(__name__)
 # app = Flask(__name__, template_folder="templates")
 app.secret_key = os.urandom(24)  # Chave segura para sessões
 
-import os
-print("Templates folder usada pelo Flask:", app.template_folder)
-
+def ler_versao_local():
+    if os.path.exists("version.txt"):
+        with open("version.txt", "r") as f:
+            return f.read().strip()
+    return "0.0.0"
 
 # Pasta fixa para configs
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), "LacovianaConfig")
@@ -374,13 +377,36 @@ def executar_sps(filtros):
 # impressao em PDF
 
 from flask import make_response, request
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether
-from reportlab.platypus.flowables import HRFlowable
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether, HRFlowable
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from datetime import datetime
 import io
+from reportlab.pdfgen import canvas as pdf_canvas
+
+# Canvas personalizado para numerar páginas "Página X de Y"
+class NumberedCanvas(pdf_canvas.Canvas):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._saved_page_states = []
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        num_pages = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self.draw_page_number(num_pages)
+            super().showPage()
+        super().save()
+
+    def draw_page_number(self, page_count):
+        largura, _ = A4
+        self.setFont("Helvetica", 8)
+        self.drawCentredString(largura / 2, 20, f"Página {self._pageNumber} de {page_count}")
 
 def cabecalho(canvas, doc, filtros):
     largura, altura = A4
@@ -402,13 +428,7 @@ def cabecalho(canvas, doc, filtros):
                            f"Clientes: {filtros.get('cliente_ini')} a {filtros.get('cliente_fin')}")
     canvas.drawRightString(largura - 35, altura - 105,
                            f"Tratamentos: {filtros.get('trat_ini')} a {filtros.get('trat_fin')}")
-
     canvas.line(30, altura - 115, largura - 30, altura - 115)  # separador final do header
-
-def rodape(canvas, doc):
-    largura, _ = A4
-    canvas.setFont("Helvetica", 8)
-    canvas.drawCentredString(largura / 2, 20, f"Página {doc.page}")
 
 def format_num(value):
     try:
@@ -443,16 +463,20 @@ def imprimir():
             d = enc["dados"]
             linhas = enc["linhas"]
 
-            # Mantém cliente + info da encomenda juntos
-            cliente_table = Table([
-                [Paragraph(f"<b>{cliente_nome}</b>", styles["BodySmallBold"]),
-                 Paragraph(f"<b>{str(local)}</b>", styles["BodySmallBold"])]
-            ], colWidths=[300, 200])
+            flowables = []
+
+            # Cliente + Local
+            cliente_table = Table([[
+                Paragraph(f"<b>{cliente_nome}</b>", styles["BodySmallBold"]),
+                Paragraph(f"<b>{str(local)}</b>", styles["BodySmallBold"])
+            ]], colWidths=[300, 200])
             cliente_table.setStyle(TableStyle([
                 ('ALIGN', (1,0), (1,0), 'RIGHT'),
                 ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ]))
+            flowables += [cliente_table, Spacer(1,4)]
 
+            # Encomenda
             data_encom = [["Encomenda", "Requisição", "Acabamento", "Micragem", "Conf"], [
                 str(d.get("obrano","") or ""),
                 str(d.get("obranome","") or ""),
@@ -468,10 +492,9 @@ def imprimir():
                 ('FONTSIZE', (0,1), (-1,-1), 8),
                 ('ALIGN', (0,1), (-1,-1), 'LEFT'),
             ]))
+            flowables += [encom_table, Spacer(1,4)]
 
-            elements.append(KeepTogether([cliente_table, Spacer(1,4), encom_table, Spacer(1,4)]))
-
-            # Linhas podem quebrar naturalmente, cabeçalho se repete
+            # Linhas
             if linhas:
                 data = [["Artigo", "Descrição", "Qtd", "Medida", "Metros", "Área"]]
                 for l in linhas:
@@ -483,8 +506,7 @@ def imprimir():
                         format_num(l.get("u_mts")),
                         format_num(l.get("u_mts2"))
                     ])
-                linhas_table = Table(data, colWidths=[60,200,40,60,60,60],
-                                     rowHeights=14, repeatRows=1)
+                linhas_table = Table(data, colWidths=[60,200,40,60,60,60], rowHeights=14, repeatRows=1)
                 linhas_table.setStyle(TableStyle([
                     ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
                     ('FONTSIZE', (0,0), (-1,0), 8),
@@ -492,10 +514,9 @@ def imprimir():
                     ('FONTSIZE', (0,1), (-1,-1), 8),
                     ('ALIGN', (2,1), (-1,-1), 'RIGHT'),
                 ]))
-                elements.append(linhas_table)
-                elements.append(Spacer(1,6))
+                flowables += [linhas_table, Spacer(1,6)]
 
-            # Totais + separador juntos
+            # Totais
             totais_table = Table([[f"Total Qtd: {format_num(d.get('qtt',0))}    Total m2: {format_num(d.get('m2',0))}"]],
                                  colWidths=[530])
             totais_table.setStyle(TableStyle([
@@ -503,11 +524,14 @@ def imprimir():
                 ('ALIGN', (0,0), (-1,-1), 'RIGHT'),
                 ('FONTSIZE', (0,0), (-1,-1), 9),
             ]))
-            elements.append(KeepTogether([totais_table, Spacer(1,6), HRFlowable(width="100%", thickness=0.5, color=colors.black), Spacer(1,8)]))
+            flowables += [totais_table, Spacer(1,6), HRFlowable(width="100%", thickness=0.5, color=colors.black), Spacer(1,8)]
+
+            elements.append(KeepTogether(flowables))
 
     doc.build(elements,
-              onFirstPage=lambda c, d: (cabecalho(c, d, filtros), rodape(c, d)),
-              onLaterPages=lambda c, d: (cabecalho(c, d, filtros), rodape(c, d)))
+              onFirstPage=lambda c, d: cabecalho(c, d, filtros),
+              onLaterPages=lambda c, d: cabecalho(c, d, filtros),
+              canvasmaker=NumberedCanvas)
 
     pdf = buffer.getvalue()
     buffer.close()
@@ -519,14 +543,14 @@ def imprimir():
 
 
 
-
 @app.route("/", methods=["GET", "POST"])
 def index():
     from datetime import date
     import pyodbc
     import pandas as pd
   
-    
+    app_version = ler_versao_local()  # pega versão do version.txt
+
     # Data inicial default: 1º de janeiro do ano atual
     hoje = date.today()
     data_ini_default = f"{hoje.year}-01-01"
@@ -607,18 +631,24 @@ def index():
         columns=columns,
         rows=rows,
         filtros=filtros,
-        error_msg=error_msg
+        error_msg=error_msg,
+        app_version=app_version
     )
 
-import webbrowser
-from threading import Timer
+import threading
+import webview
 
 if __name__ == "__main__":
     port = 5000
-    # Abrir navegador automaticamente
-    Timer(1, lambda: webbrowser.open(f"http://127.0.0.1:{port}")).start()
-    app.run(debug=False, port=port)
 
-    # Rodar Flask em debug=True garante reload e sem cache de templates
-    # app.run(debug=True, port=port, use_reloader=True)
+    def start_flask():
+        app.run(debug=False, port=port, use_reloader=False)
+
+    # Corre Flask em segundo plano
+    threading.Thread(target=start_flask, daemon=True).start()
+
+    # Abre numa janela nativa (sem precisar do Chrome/Edge)
+    webview.create_window("Encomendas", f"http://127.0.0.1:{port}")
+    webview.start()
+
 
