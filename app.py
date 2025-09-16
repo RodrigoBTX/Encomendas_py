@@ -46,7 +46,7 @@ def ler_config():
         return "Lacoviana", None, None, None
 
 
-def salvar_config(dsn,database, user, password):
+def guardar_config(dsn,database, user, password):
     config = configparser.ConfigParser()
     password_b64 = base64.b64encode(password.encode('utf-8')).decode('utf-8')
     config["DATABASE"] = {
@@ -189,16 +189,16 @@ def configuracoes():
         user_form = request.form.get("user")
         password_form = request.form.get("password")
 
-        #salvar_config(database, user, password)
+        #guardar_config(database, user, password)
         #return redirect(url_for("index"))
     
-        # Testar a conexão antes de salvar
+        # Testar a conexão antes de guardar
         try:
             test_conn_str = f"DSN={dsn_form};UID={user_form};PWD={password_form};DATABASE={database_form}"
             conn = pyodbc.connect(test_conn_str)
             conn.close()
-            # Se não der erro, salva no config.ini
-            salvar_config(dsn_form,database_form, user_form, password_form)
+            # Se não der erro, guarda no config.ini
+            guardar_config(dsn_form,database_form, user_form, password_form)
             return redirect(url_for("index"))
         except pyodbc.Error as e:
             error_msg = f"Erro ao conectar na base de dados: {e}"
@@ -480,10 +480,21 @@ def imprimir():
             data_encom = [["Encomenda", "Requisição", "Acabamento", "Micragem", "Conf"], [
                 str(d.get("obrano","") or ""),
                 str(d.get("obranome","") or ""),
-                str(d.get("obs","") or ""),
+                str(d.get("tratamento","") or ""),
                 str(d.get("micro","") or ""),
                 str(d.get("s_n","") or "")
-            ]]
+            ],
+            ]
+            
+            # Se houver descrição, adiciona logo abaixo do tratamento
+            descri = d.get("descri", "")
+            if descri:
+                data_encom.append([
+                    "", "",  # espaço nas primeiras duas colunas
+                    Paragraph(f"<b><font size=7>{descri}</font></b>", styles["BodySmall"]),  # menor e bold
+                "", ""
+                ])
+
             encom_table = Table(data_encom, colWidths=[70, 120, 150, 70, 50], repeatRows=1)
             encom_table.setStyle(TableStyle([
                 ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
@@ -491,6 +502,7 @@ def imprimir():
                 ('ALIGN', (0,0), (-1,0), 'CENTER'),
                 ('FONTSIZE', (0,1), (-1,-1), 8),
                 ('ALIGN', (0,1), (-1,-1), 'LEFT'),
+                ('SPAN', (2,2), (4,2)),  
             ]))
             flowables += [encom_table, Spacer(1,4)]
 
