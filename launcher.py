@@ -44,7 +44,7 @@ def obter_versao_remota():
         return None
 
 def download_e_extrair_zip_com_progresso():
-    """Donwload do zip e mostra uma janela com barra de progresso"""
+    """Download do zip e mostra uma janela com barra de progresso"""
     try:
         # Cria a janela de progresso
         win = tk.Toplevel()
@@ -112,7 +112,7 @@ if already_open():
     messagebox.showinfo("Info", f"O {APP_EXE} já se encontra aberto.")
     sys.exit(0)
 
-# Se o exe não existir, baixa e extrai o zip
+# Se o exe não existir, download e extrai o zip
 if not os.path.exists(APP_EXE):
     download_e_extrair_zip_com_progresso()
 

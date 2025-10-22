@@ -256,6 +256,171 @@ def linhas():
 
 
 
+# Nova rota - botao de detalhe
+
+@app.route("/detalhe", methods=["GET", "POST"])
+def detalhe():
+    # Filtros vêm do request.form (se vier POST do index) ou ficam vazios
+
+    # Usar filtros do form (botão detalhe) ou da sessão
+    filtros_form = request.form.to_dict()
+    filtros_sessao = session.get('filtros', {})  # últimos filtros usados
+    filtros = {**filtros_sessao, **filtros_form}  # form sobrescreve sessão
+
+    # Armazena de volta na sessão
+    session['filtros'] = filtros
+
+    # Seleções específicas para ranges
+    clientes_sel_raw = request.form.getlist("clientes_sel") or filtros.get("clientes_sel", [])
+    trat_sel_raw = request.form.getlist("trat_sel") or filtros.get("trat_sel", [])
+
+    # Forçar que sejam listas
+    if isinstance(clientes_sel_raw, str):
+        clientes_sel = [clientes_sel_raw.strip()]
+    else:
+        clientes_sel = [c.strip() for c in clientes_sel_raw]
+
+    if isinstance(trat_sel_raw, str):
+        trat_sel = [trat_sel_raw.strip()]
+    else:
+        trat_sel = [t.strip() for t in trat_sel_raw]
+
+    conn = criar_conexao()
+    cursor = conn.cursor()
+
+    # Carregar lista de clientes segundo os filtros
+    cursor.execute("""
+        EXEC sp_listar_clientes 
+            @data_ini=?, @data_fin=?, 
+            @cliente_ini=?, @cliente_fin=?, 
+            @trat_ini=?, @trat_fin=?, 
+            @req=?, @enc_ini=?, @enc_fin=?, 
+            @tipo=?, @subtipo=?, @gamacor=?, @linha=?
+    """, (
+        filtros.get("data_ini"),
+        filtros.get("data_fin"),
+        filtros.get("cliente_ini"),
+        filtros.get("cliente_fin"),
+        filtros.get("trat_ini"),
+        filtros.get("trat_fin"),
+        filtros.get("requisicao"),
+        filtros.get("enc_ini"),
+        filtros.get("enc_fin"),
+        filtros.get("tipo"),
+        filtros.get("subtipo"),
+        filtros.get("gama_cor"),
+        filtros.get("linha"),
+    ))
+    clientes_lista = [row[0] for row in cursor.fetchall()]
+
+    # Carregar lista de tratamentos segundo os filtros
+    cursor.execute("""
+        EXEC sp_listar_tratamentos 
+            @data_ini=?, @data_fin=?, 
+            @cliente_ini=?, @cliente_fin=?, 
+            @trat_ini=?, @trat_fin=?, 
+            @req=?, @enc_ini=?, @enc_fin=?, 
+            @tipo=?, @subtipo=?, @gamacor=?, @linha=?
+    """, (
+        filtros.get("data_ini"),
+        filtros.get("data_fin"),
+        filtros.get("cliente_ini"),
+        filtros.get("cliente_fin"),
+        filtros.get("trat_ini"),
+        filtros.get("trat_fin"),
+        filtros.get("requisicao"),
+        filtros.get("enc_ini"),
+        filtros.get("enc_fin"),
+        filtros.get("tipo"),
+        filtros.get("subtipo"),
+        filtros.get("gama_cor"),
+        filtros.get("linha"),
+    ))
+    tratamentos_lista = [row[0] for row in cursor.fetchall()]
+
+    rows, columns, error_msg = None, None, None
+
+    # Só executa detalhe se houver seleções
+    if clientes_sel or trat_sel:
+        # range_clientes = ",".join(f"''{c}''" for c in clientes_sel) if clientes_sel else None
+        # range_tratamentos = ",".join(f"''{t}''" for t in trat_sel) if trat_sel else None
+
+        # range_clientes = ";".join(c.replace(";", " ").strip() for c in clientes_sel) if clientes_sel else None
+        # range_tratamentos = ";".join(t.replace(";", " ").strip() for t in trat_sel) if trat_sel else None
+
+        import json
+
+        range_clientes = json.dumps([c.strip() for c in clientes_sel]) if clientes_sel else None
+        range_tratamentos = json.dumps([t.strip() for t in trat_sel]) if trat_sel else None
+
+
+
+        print("➡ Clientes Range:", range_clientes)
+        print("➡ Tratamentos Range:", range_tratamentos)       
+        print("Filtros:", filtros)
+
+        try:           
+            
+            cursor.execute("""
+                SET CONCAT_NULL_YIELDS_NULL ON;
+                SET ANSI_WARNINGS ON;
+                SET ANSI_PADDING ON;
+                           
+                EXEC sp_teste_listagem 
+                    @data_ini=?, @data_fin=?, 
+                    @cliente_ini=?, @cliente_fin=?, 
+                    @trat_ini=?, @trat_fin=?, 
+                    @req=?, @enc_ini=?, @enc_fin=?, 
+                    @tipo=?, @subtipo=?, @gamacor=?, @linha=?,@ordem=?, 
+                    @clientes_json=?, @tratamentos_json=?
+            """, (
+                filtros.get("data_ini"),
+                filtros.get("data_fin"),
+                filtros.get("cliente_ini"),
+                filtros.get("cliente_fin"),
+                filtros.get("trat_ini"),
+                filtros.get("trat_fin"),
+                filtros.get("requisicao"),
+                filtros.get("enc_ini"),
+                filtros.get("enc_fin"),
+                filtros.get("tipo"),
+                filtros.get("subtipo"),
+                filtros.get("gama_cor"),
+                filtros.get("linha"),
+                filtros.get("ordem") or 1,
+                range_clientes,
+                range_tratamentos
+            ))
+
+            
+
+            rows = cursor.fetchall()
+            columns = [desc[0] for desc in cursor.description]
+
+            
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            error_msg = f"Erro ao carregar detalhe: {str(e)}"
+
+
+    cursor.close()
+    conn.close()
+
+    return render_template(
+        "detalhe.html",
+        clientes_lista=clientes_lista,   # todos os clientes do SP
+        tratamentos_lista=tratamentos_lista,  # todos os tratamentos do SP
+        clientes_sel=clientes_lista,
+        trat_sel=tratamentos_lista,
+        rows=rows,
+        columns=columns,
+        error_msg=error_msg
+    )
+
+
+
 # executar sps para a impressão
 def executar_sps(filtros):
     # filtros = request.form.to_dict()
@@ -332,6 +497,7 @@ def executar_sps(filtros):
                 obranome_enc = enc_dict.get("obranome")   # nome da obra -> vai no @req
                 trat_enc = enc_dict.get("tratamento")
                 cliente_nome = cliente_dict.get("cliente")
+                micros_enc = enc_dict.get("micro", 0)      # micragem , para não duplicar encomendas e para apresentar linhas corretas
 
                 # 3. Linhas da encomenda
                 cursor.execute("""
@@ -340,7 +506,8 @@ def executar_sps(filtros):
                         @enc=?, 
                         @tipo=?, @subtipo=?, 
                         @gamacor=?, @linha=?, 
-                        @cliente=?, @tratamento=? 
+                        @cliente=?, @tratamento=?, 
+                        @micros=?
                 """, (
                     obranome_enc,
                     obrano_enc,
@@ -349,7 +516,8 @@ def executar_sps(filtros):
                     filtros.get("gama_cor"),
                     filtros.get("linha"),
                     cliente_nome,
-                    trat_enc
+                    trat_enc,
+                    micros_enc
                 ))
                 linhas = cursor.fetchall()
                 linhas_cols = [c[0] for c in cursor.description]
@@ -485,7 +653,7 @@ def imprimir():
                 str(d.get("s_n","") or "")
             ],
             ]
-            
+
             # Se houver descrição, adiciona logo abaixo do tratamento
             descri = d.get("descri", "")
             if descri:

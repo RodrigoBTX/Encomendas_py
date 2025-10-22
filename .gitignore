@@ -32,6 +32,7 @@ Thumbs.db
 # --- Configurações locais ---
 .env
 *.sqlite3
+*.ini
 
 # --- Frontend / HTML build (se usar ferramentas tipo npm) ---
 node_modules/

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <title>🔍 Detalhe Encomendas</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+        }
+        .wrapper {
+            display: flex;
+            height: 100vh;
+        }
+        .sidebar {
+            width: 280px;
+            background: #f8f9fa;
+            border-right: 1px solid #ddd;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+        .content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .content-header {
+            padding: 0.5rem 1rem;
+            border-bottom: 1px solid #ddd;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .content-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+        th {
+            position: sticky;
+            top: 0;
+            background-color: #343a40 !important;
+            color: white !important;
+            z-index: 10;
+        }
+        .form-check {
+            font-size: 0.85rem;
+            line-height: 1.2;
+        }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <h5>Filtros</h5>
+        <form method="POST" id="detalheForm">
+            <h6>Clientes</h6>
+            <div class="mb-2">
+                <div class="btn-group btn-group-sm w-100">
+                    <button type="button" class="btn btn-dark" onclick="toggleCheckboxes('clientes_sel', true)">✔ Selecionar</button>
+                    <button type="button" class="btn btn-light border" onclick="toggleCheckboxes('clientes_sel', false)">✖ Limpar</button>
+                </div>
+            </div>
+            <div class="border p-2 mb-3" style="max-height:40vh; overflow-y:auto;">
+                {% for c in clientes_lista %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="clientes_sel" value="{{ c }}"
+                               {% if c in clientes_sel %}checked{% endif %}>
+                        <label class="form-check-label">{{ c }}</label>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <h6>Tratamentos</h6>
+            <div class="mb-2">
+                <div class="btn-group btn-group-sm w-100">
+                    <button type="button" class="btn btn-dark" onclick="toggleCheckboxes('trat_sel', true)">✔ Selecionar</button>
+                    <button type="button" class="btn btn-light border" onclick="toggleCheckboxes('trat_sel', false)">✖ Limpar</button>
+                </div>
+            </div>
+            <div class="border p-2 mb-3" style="max-height:40vh; overflow-y:auto;">
+                {% for t in tratamentos_lista %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="trat_sel" value="{{ t }}"
+                               {% if t in trat_sel %}checked{% endif %}>
+                        <label class="form-check-label">{{ t }}</label>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100">Aplicar Filtros</button>
+            <a href="{{ url_for('index') }}" class="btn btn-secondary w-100 mt-2">⬅ Voltar</a>
+        </form>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+        <div class="content-header">
+            <h5 class="mb-0">🔍 Detalhe Encomendas</h5>
+            {% if error_msg %}
+                <div class="alert alert-danger py-1 px-2 mb-0">{{ error_msg }}</div>
+            {% endif %}
+        </div>
+        <div class="content-body">
+            <div id="loading" style="display:none;" class="text-center my-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2">A carregar listagem...</p>
+            </div>
+
+            {% if rows %}
+                <div class="table-responsive" id="resultsTable">
+                    <table class="table table-striped table-bordered table-sm">
+                        <thead class="table-dark">
+                            <tr>
+                                {% for col in columns %}
+                                    <th>{{ col }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in rows %}
+                                <tr>
+                                    {% for col in row %}
+                                        <td>{{ col }}</td>
+                                    {% endfor %}
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-warning" id="noResults">Selecione clientes/tratamentos para ver resultados.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Script selecionar/deselecionar -->
+<script>
+function toggleCheckboxes(name, checked) {
+    document.querySelectorAll(`input[name="${name}"]`).forEach(cb => {
+        cb.checked = checked;
+    });
+}
+
+document.getElementById("detalheForm").addEventListener("submit", function() {
+    document.getElementById("loading").style.display = "block";
+    let resultsTable = document.getElementById("resultsTable");
+    let noResults = document.getElementById("noResults");
+    if (resultsTable) resultsTable.style.display = "none";
+    if (noResults) noResults.style.display = "none";
+});
+</script>
+
+</body>
+</html>

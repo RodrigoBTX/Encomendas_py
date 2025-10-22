@@ -132,7 +132,7 @@
             <button type="button" id="btnImprimir" class="btn btn-success">Imprimir</button>
             <div id="loading" style="display:none; margin-top:10px;">
                 <span class="spinner-border spinner-border-sm"></span> A processar...
-            </div>
+            </div>            
         </div>
     </form>
 
@@ -141,6 +141,26 @@
             {{ error_msg }}
         </div>
     {% endif %}
+
+    <!-- Botão de detalhe fora do form de filtros -->
+    <form action="{{ url_for('detalhe') }}" method="POST" style="display:inline;">
+        {% for k, v in filtros.items() %}
+            <input type="hidden" name="{{ k }}" value="{{ v }}">
+        {% endfor %}
+
+        <!-- Adiciona os clientes selecionados -->
+        {% for c in clientes_sel %}
+            <input type="hidden" name="clientes_sel" value="{{ c }}">
+        {% endfor %}
+
+        <!-- Adiciona os tratamentos selecionados -->
+        {% for t in trat_sel %}
+            <input type="hidden" name="trat_sel" value="{{ t }}">
+        {% endfor %}
+
+        <button type="submit" class="btn btn-info">🔍 Detalhe</button>
+    </form>
+
 
     <!-- Resultados -->    
     <div class="mt-4">
