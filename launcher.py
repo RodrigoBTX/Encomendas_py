@@ -48,7 +48,7 @@ def download_e_extrair_zip_com_progresso():
     try:
         # Cria a janela de progresso
         win = tk.Toplevel()
-        win.title("Atualizando...")
+        win.title("A Atualizar...")
         win.geometry("400x100")
         win.resizable(False, False)
         tk.Label(win, text="Download dos arquivos, aguarde...").pack(pady=10)

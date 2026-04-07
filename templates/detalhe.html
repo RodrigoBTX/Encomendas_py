@@ -6,57 +6,22 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
-        body, html {
-            height: 100%;
-            margin: 0;
-        }
-        .wrapper {
-            display: flex;
-            height: 100vh;
-        }
-        .sidebar {
-            width: 280px;
-            background: #f8f9fa;
-            border-right: 1px solid #ddd;
-            padding: 1rem;
-            overflow-y: auto;
-        }
-        .content {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        .content-header {
-            padding: 0.5rem 1rem;
-            border-bottom: 1px solid #ddd;
-            background: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .content-body {
-            flex: 1;
-            overflow-y: auto;
-            padding: 1rem;
-        }
-        th {
-            position: sticky;
-            top: 0;
-            background-color: #343a40 !important;
-            color: white !important;
-            z-index: 10;
-        }
-        .form-check {
-            font-size: 0.85rem;
-            line-height: 1.2;
-        }
+        body, html { height: 100%; margin: 0; }
+        .wrapper { display: flex; height: 100vh; }
+        .sidebar { width: 280px; background: #f8f9fa; border-right: 1px solid #ddd; padding: 1rem; overflow-y: auto; }
+        .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .content-header { padding: 0.5rem 1rem; border-bottom: 1px solid #ddd; background: #fff; display: flex; align-items: center; justify-content: space-between; }
+        .content-body { flex: 1; overflow-y: auto; padding: 1rem; }
+        th { position: sticky; top: 0; background-color: #343a40 !important; color: white !important; z-index: 10; }
+        .form-check { font-size: 0.85rem; line-height: 1.2; }
+        
+        /* Iframe invisível para impressão */
+        #printFrame { display: none; }
     </style>
 </head>
 <body>
 
 <div class="wrapper">
-    <!-- Sidebar -->
     <div class="sidebar">
         <h5>Filtros</h5>
         <form method="POST" id="detalheForm">
@@ -99,40 +64,14 @@
         </form>
     </div>
 
-    <!-- Content -->
     <div class="content">
         <div class="content-header">
             <h5 class="mb-0">🔍 Detalhe Encomendas</h5>
-
             <div class="d-flex align-items-center gap-2">
                 {% if rows %}
-                <!-- Botão de impressão -->
-                    <form action="{{ url_for('imprimir') }}" method="post" target="_blank" class="m-0">
-                    <!-- Filtros da sessão (só se existirem) -->
-                        {% if session.get('filtros') %}
-                            {% for key, value in session['filtros'].items() %}
-                                <input type="hidden" name="{{ key }}" value="{{ value }}">
-                            {% endfor %}
-                        {% endif %}
-
-                    <!-- Clientes e tratamentos selecionados -->
-                        {% for c in clientes_sel %}
-                            <input type="hidden" name="clientes_sel" value="{{ c }}">
-                        {% endfor %}
-                        {% for t in trat_sel %}
-                            <input type="hidden" name="trat_sel" value="{{ t }}">
-                        {% endfor %}
-
-                        <button type="submit" class="btn btn-success btn-sm">
-                            <i class="bi bi-printer"></i> Imprimir
-                        </button>
-
-                    </form>
-                {% endif %}
-
-
-                {% if error_msg %}
-                    <div class="alert alert-danger py-1 px-2 mb-0">{{ error_msg }}</div>
+                    <button type="button" class="btn btn-success btn-sm" onclick="dispararImpressao()">
+                        <i class="bi bi-printer"></i> Imprimir PDF
+                    </button>
                 {% endif %}
             </div>
         </div>
@@ -171,20 +110,39 @@
     </div>
 </div>
 
-<!-- Script selecionar/deselecionar -->
+<form id="formImpressaoOculto" action="{{ url_for('imprimir') }}" method="POST" target="printFrame" style="display:none;">
+    {% if session.get('filtros') %}
+        {% for key, value in session['filtros'].items() %}
+            <input type="hidden" name="{{ key }}" value="{{ value }}">
+        {% endfor %}
+    {% endif %}
+    {% for c in clientes_sel %}<input type="hidden" name="clientes_sel" value="{{ c }}">{% endfor %}
+    {% for t in trat_sel %}<input type="hidden" name="trat_sel" value="{{ t }}">{% endfor %}
+</form>
+
+<iframe id="printFrame" name="printFrame"></iframe>
+
 <script>
 function toggleCheckboxes(name, checked) {
-    document.querySelectorAll(`input[name="${name}"]`).forEach(cb => {
-        cb.checked = checked;
-    });
+    document.querySelectorAll(`input[name="${name}"]`).forEach(cb => { cb.checked = checked; });
+}
+
+function dispararImpressao() {
+    // 1. Submete o formulário para o iframe
+    document.getElementById('formImpressaoOculto').submit();
+    
+    // 2. Aguarda o carregamento e dispara o diálogo de impressão
+    const frame = document.getElementById('printFrame');
+    frame.onload = function() {
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+    };
 }
 
 document.getElementById("detalheForm").addEventListener("submit", function() {
     document.getElementById("loading").style.display = "block";
     let resultsTable = document.getElementById("resultsTable");
-    let noResults = document.getElementById("noResults");
     if (resultsTable) resultsTable.style.display = "none";
-    if (noResults) noResults.style.display = "none";
 });
 </script>
 
