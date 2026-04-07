@@ -103,10 +103,40 @@
     <div class="content">
         <div class="content-header">
             <h5 class="mb-0">🔍 Detalhe Encomendas</h5>
-            {% if error_msg %}
-                <div class="alert alert-danger py-1 px-2 mb-0">{{ error_msg }}</div>
-            {% endif %}
+
+            <div class="d-flex align-items-center gap-2">
+                {% if rows %}
+                <!-- Botão de impressão -->
+                    <form action="{{ url_for('imprimir') }}" method="post" target="_blank" class="m-0">
+                    <!-- Filtros da sessão (só se existirem) -->
+                        {% if session.get('filtros') %}
+                            {% for key, value in session['filtros'].items() %}
+                                <input type="hidden" name="{{ key }}" value="{{ value }}">
+                            {% endfor %}
+                        {% endif %}
+
+                    <!-- Clientes e tratamentos selecionados -->
+                        {% for c in clientes_sel %}
+                            <input type="hidden" name="clientes_sel" value="{{ c }}">
+                        {% endfor %}
+                        {% for t in trat_sel %}
+                            <input type="hidden" name="trat_sel" value="{{ t }}">
+                        {% endfor %}
+
+                        <button type="submit" class="btn btn-success btn-sm">
+                            <i class="bi bi-printer"></i> Imprimir
+                        </button>
+
+                    </form>
+                {% endif %}
+
+
+                {% if error_msg %}
+                    <div class="alert alert-danger py-1 px-2 mb-0">{{ error_msg }}</div>
+                {% endif %}
+            </div>
         </div>
+
         <div class="content-body">
             <div id="loading" style="display:none;" class="text-center my-5">
                 <div class="spinner-border text-primary" role="status"></div>

@@ -112,6 +112,7 @@ def get_encomendas(filtros):
             @enc_ini=?, @enc_fin=?, 
             @tipo=?, @subtipo=?, 
             @gamacor=?, @linha=?, @ordem=?
+            
         """, (
             filtros.get("data_ini"),
             filtros.get("data_fin"),
@@ -254,6 +255,203 @@ def linhas():
     # devolve lista de tuplas (valor, display)
     return jsonify([{"value": r[0], "label": r[1]} for r in rows])
 
+
+# visualização do crystal
+@app.route("/visualizar_relatorio", methods=["GET", "POST"])
+def visualizar_relatorio():
+    # Recupera o dicionário atual da sessão ou cria um novo
+    filtros = session.get('filtros_preview', {}).copy()
+
+    if request.method == "POST":
+
+        dados_form = request.form.to_dict()
+        
+        for k, v in dados_form.items():
+            if isinstance(v, str):
+                valor_limpo = v.strip()
+                filtros[k] = valor_limpo
+            else:
+                filtros[k] = v
+        
+        
+        session['filtros_preview'] = filtros
+        session.modified = True
+        
+        # --- DEBUG: Verifica se o Cliente e Linha aparecem aqui no teu terminal ---
+        # print(f"\n--- DEBUG VISUALIZAR (POST) ---")
+        # print(f"Filtros Recebidos: {filtros}")
+    else:
+        # print("\n>>> AVISO: Acesso via GET (Filtros não atualizados)\n")
+        pass
+
+    # Segurança: Se a sessão estiver vazia (acesso direto via GET), define datas padrão
+    if not filtros.get('data_ini'):
+        from datetime import date
+        filtros['data_ini'] = f"{date.today().year}-01-01"
+        filtros['data_fin'] = date.today().isoformat()
+        session['filtros_preview'] = filtros
+
+    # Carregar a lista de tratamentos para a barra lateral
+    try:
+        conn = criar_conexao()
+        cursor = conn.cursor()
+        # Filtramos tratamentos nulos ou vazios para a lista vir limpa
+        cursor.execute("""
+            SELECT DISTINCT tratamento 
+            FROM u_tratamentos (NOLOCK) 
+            WHERE tratamento IS NOT NULL AND tratamento <> '' 
+            ORDER BY tratamento ASC
+        """)
+        
+        # Aplicamos o strip() para garantir que não há espaços extras nos botões da lateral
+        tratamentos = [row[0].strip() for row in cursor.fetchall()]
+        
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Erro ao carregar tratamentos lateral: {e}")
+        tratamentos = []
+
+    return render_template("preview_crystal.html", tratamentos=tratamentos)
+
+
+# rota replicada do imprimir
+
+@app.route("/imprimir_preview", methods=["GET"])
+def imprimir_preview():
+    filtros = session.get('filtros_preview', {}).copy()
+
+    # DEBUG
+    # print("DEBUG FILTROS NO PDF:", filtros)
+    
+    # Se a barra lateral enviou um tratamento específico, sobrepõe nos filtros
+    t_ini = request.args.get('trat_ini')
+    t_fin = request.args.get('trat_fin')
+    if t_ini is not None:
+        filtros['trat_ini'] = t_ini.strip()
+        filtros['trat_fin'] = t_fin.strip()
+
+    
+    resultado = executar_sps(filtros)  # lógica dos SPs já implementada
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4,
+                            leftMargin=30, rightMargin=30,
+                            topMargin=130, bottomMargin=50)
+    
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="BodySmallBold", fontSize=9, leading=11, fontName="Helvetica-Bold"))
+    styles.add(ParagraphStyle(name="BodySmall", fontSize=8, leading=10))
+    styles.add(ParagraphStyle(name="Aviso", fontSize=14, leading=16, alignment=1, textColor=colors.red))
+
+    elements = []
+
+    # --- VERIFICAÇÃO DE DADOS ---
+    if not resultado:
+        # Se não houver dados, cria um PDF com mensagem de aviso
+        elements.append(Spacer(1, 100))
+        elements.append(Paragraph("<b>NÃO FORAM ENCONTRADOS REGISTOS</b>", styles["Aviso"]))
+        elements.append(Spacer(1, 12))
+        elements.append(Paragraph(f"Para o tratamento: {t_ini if t_ini else 'Todos'}", styles["BodySmall"]))
+    else:
+
+        for cliente in resultado:
+            cliente_nome = cliente["cliente"].get("cliente", "")
+            local = cliente["cliente"].get("local", "")
+
+            for enc in cliente["encomendas"]:
+                d = enc["dados"]
+                linhas = enc["linhas"]
+
+                flowables = []
+
+                # Cliente + Local
+                cliente_table = Table([[
+                    Paragraph(f"<b>{cliente_nome}</b>", styles["BodySmallBold"]),
+                    Paragraph(f"<b>{str(local)}</b>", styles["BodySmallBold"])
+                ]], colWidths=[300, 200])
+                cliente_table.setStyle(TableStyle([
+                    ('ALIGN', (1,0), (1,0), 'RIGHT'),
+                    ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                ]))
+                flowables += [cliente_table, Spacer(1,4)]
+
+                # Encomenda
+                data_encom = [["Encomenda", "Requisição", "Acabamento", "Micragem", "Conf"], [
+                    str(d.get("obrano","") or ""),
+                    str(d.get("obranome","") or ""),
+                    str(d.get("tratamento","") or ""),
+                    str(d.get("micro","") or ""),
+                    str(d.get("s_n","") or "")
+                ],
+                ]
+
+                # Se houver descrição, adiciona logo abaixo do tratamento
+                descri = d.get("descri", "")
+                if descri:
+                    data_encom.append([
+                        "", "",  # espaço nas primeiras duas colunas
+                        Paragraph(f"<b><font size=7>{descri}</font></b>", styles["BodySmall"]),  # menor e bold
+                    "", ""
+                    ])
+
+                encom_table = Table(data_encom, colWidths=[70, 120, 150, 70, 50], repeatRows=1)
+                encom_table.setStyle(TableStyle([
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0,0), (-1,0), 9),
+                    ('ALIGN', (0,0), (-1,0), 'CENTER'),
+                    ('FONTSIZE', (0,1), (-1,-1), 8),
+                    ('ALIGN', (0,1), (-1,-1), 'LEFT'),
+                    ('SPAN', (2,2), (4,2)),  
+                ]))
+                flowables += [encom_table, Spacer(1,4)]
+
+                # Linhas
+                if linhas:
+                    data = [["Artigo", "Descrição", "Qtd", "Medida", "Metros", "Área"]]
+                    for l in linhas:
+                        data.append([
+                            str(l.get("ref","") or ""),
+                            str(l.get("design","") or ""),
+                            format_num(l.get("qtt")),
+                            format_num(l.get("u_medida1","")),
+                            format_num(l.get("u_mts")),
+                            format_num(l.get("u_mts2"))
+                        ])
+                    linhas_table = Table(data, colWidths=[60,200,40,60,60,60], rowHeights=14, repeatRows=1)
+                    linhas_table.setStyle(TableStyle([
+                        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0,0), (-1,0), 8),
+                        ('ALIGN', (0,0), (-1,0), 'CENTER'),
+                        ('FONTSIZE', (0,1), (-1,-1), 8),
+                        ('ALIGN', (2,1), (-1,-1), 'RIGHT'),
+                    ]))
+                    flowables += [linhas_table, Spacer(1,6)]
+
+                # Totais
+                totais_table = Table([[f"Total Qtd: {format_num(d.get('qtt',0))}    Total m2: {format_num(d.get('m2',0))}"]],
+                                    colWidths=[530])
+                totais_table.setStyle(TableStyle([
+                    ('FONTNAME', (0,0), (-1,-1), 'Helvetica-Bold'),
+                    ('ALIGN', (0,0), (-1,-1), 'RIGHT'),
+                    ('FONTSIZE', (0,0), (-1,-1), 9),
+                ]))
+                flowables += [totais_table, Spacer(1,6), HRFlowable(width="100%", thickness=0.5, color=colors.black), Spacer(1,8)]
+
+                elements.append(KeepTogether(flowables))
+    
+        
+    doc.build(elements, 
+            onFirstPage=lambda c, d: cabecalho(c, d, filtros),
+            onLaterPages=lambda c, d: cabecalho(c, d, filtros),
+            canvasmaker=NumberedCanvas)
+
+    pdf = buffer.getvalue()
+    buffer.close()
+    response = make_response(pdf)
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = 'inline; filename=preview.pdf'
+    return response
 
 
 # Nova rota - botao de detalhe
@@ -789,6 +987,13 @@ def index():
         for key in filtros.keys():
             filtros[key] = request.form.get(key)  or filtros[key]
 
+        # Guarda os filtros atuais na sessão para usar no detalhe e na impressão
+        session['filtros_preview'] = filtros.copy()
+
+        # guardar filtros na sessão para usar no detalhe e na impressão
+    if 'filtros_preview' not in session:
+        session['filtros_preview'] = filtros.copy()
+
     # Inicializa DataFrame e mensagem de erro
     df = pd.DataFrame()
     error_msg = None
@@ -830,5 +1035,3 @@ if __name__ == "__main__":
     # Abre numa janela nativa (sem precisar do Chrome/Edge)
     webview.create_window("Encomendas", f"http://127.0.0.1:{port}")
     webview.start()
-
-

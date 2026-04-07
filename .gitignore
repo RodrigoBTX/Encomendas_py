@@ -34,7 +34,7 @@ Thumbs.db
 *.sqlite3
 *.ini
 
-# --- Frontend / HTML build (se usar ferramentas tipo npm) ---
+# --- Frontend / HTML build 
 node_modules/
 npm-debug.log
 yarn-debug.log

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt">
+
 <head>
     <meta charset="UTF-8">
     <meta name="google" content="notranslate">
@@ -8,163 +9,177 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
         /* Evita quebra de linha nas células */
-        .table td, .table th {
-        white-space: nowrap; /* mantém texto na mesma linha */
+        .table td,
+        .table th {
+            white-space: nowrap;
+            /* mantém texto na mesma linha */
         }
 
         /* Mantém a tabela responsiva com scroll horizontal */
         .table-responsive {
-        overflow-x: auto;
+            overflow-x: auto;
         }
     </style>
 </head>
+
 <body class="bg-light">
 
-<div class="container-fluid mt-3 position-relative">
-    <h2 class="d-inline">Lacoviana</h2>
-    <!-- Botão de configurações no canto superior direito -->
-    <a href="{{ url_for('login') }}" class="btn btn-primary d-flex align-items-center gap-2" style="position:absolute; top:10px; right:10px;">
-        <i class="bi bi-gear-fill"></i> Configurações
-    </a>
-</div>
+    <div class="container-fluid mt-3 position-relative">
+        <h2 class="d-inline">Lacoviana</h2>
+        <!-- Botão de configurações no canto superior direito -->
+        <a href="{{ url_for('login') }}" class="btn btn-primary d-flex align-items-center gap-2"
+            style="position:absolute; top:10px; right:10px;">
+            <i class="bi bi-gear-fill"></i> Configurações
+        </a>
+    </div>
 
 
-<div class="container-fluid py-4">
-    <h2 class="mb-4">📦 Listagem de Encomendas</h2>
+    <div class="container-fluid py-4">
+        <h2 class="mb-4">📦 Listagem de Encomendas</h2>
 
-    <!-- Formulário de filtros -->
-    <form id="filtrosForm" method="POST" class="row g-3">
+        <!-- Formulário de filtros -->
+        <form id="filtrosForm" method="POST" class="row g-3">
 
-        <!-- Datas -->
-        <div class="col-md-3">
-            <label class="form-label">Data inicial</label>
-            <input type="date" class="form-control" name="data_ini" value="{{ filtros.data_ini }}">
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Data final</label>
-            <input type="date" class="form-control" name="data_fin" value="{{ filtros.data_fin }}">
-        </div>
-
-        <!-- Cliente com lupa -->
-        <div class="col-md-3">
-            <label class="form-label">Cliente inicial</label>
-            <div class="input-group">
-                <input type="text" class="form-control" id="cliente_ini" name="cliente_ini" value="{{ filtros.cliente_ini }}">
-                <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#modalCliente" onclick="loadClientes('cliente_ini')">🔍</button>
+            <!-- Datas -->
+            <div class="col-md-3">
+                <label class="form-label">Data inicial</label>
+                <input type="date" class="form-control" name="data_ini" value="{{ filtros.data_ini }}">
             </div>
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Cliente final</label>
-            <div class="input-group">
-                <input type="text" class="form-control" id="cliente_fin" name="cliente_fin" value="{{ filtros.cliente_fin }}">
-                <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#modalCliente" onclick="loadClientes('cliente_fin')">🔍</button>
+            <div class="col-md-3">
+                <label class="form-label">Data final</label>
+                <input type="date" class="form-control" name="data_fin" value="{{ filtros.data_fin }}">
             </div>
-        </div>
 
-        <!-- Tratamento com lupa -->
-        <div class="col-md-3">
-            <label class="form-label">Tratamento inicial</label>
-            <div class="input-group">
-                <input type="text" class="form-control" id="trat_ini" name="trat_ini" value="{{ filtros.trat_ini }}">
-                <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#modalTrat" onclick="loadTratamentos('trat_ini')">🔍</button>
+            <!-- Cliente com lupa -->
+            <div class="col-md-3">
+                <label class="form-label">Cliente inicial</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="cliente_ini" name="cliente_ini"
+                        value="{{ filtros.cliente_ini }}">
+                    <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal"
+                        data-bs-target="#modalCliente" onclick="loadClientes('cliente_ini')">🔍</button>
+                </div>
             </div>
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Tratamento final</label>
-            <div class="input-group">
-                <input type="text" class="form-control" id="trat_fin" name="trat_fin" value="{{ filtros.trat_fin }}">
-                <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#modalTrat" onclick="loadTratamentos('trat_fin')">🔍</button>
+            <div class="col-md-3">
+                <label class="form-label">Cliente final</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="cliente_fin" name="cliente_fin"
+                        value="{{ filtros.cliente_fin }}">
+                    <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal"
+                        data-bs-target="#modalCliente" onclick="loadClientes('cliente_fin')">🔍</button>
+                </div>
             </div>
-        </div>
 
-        <!-- Requisição e encomenda -->
-        <div class="col-md-3">
-            <label class="form-label">Requisição</label>
-            <input type="text" class="form-control" name="requisicao" value="{{ filtros.requisicao }}">
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Encomenda inicial</label>
-            <input type="number" class="form-control" name="enc_ini" value="{{ filtros.enc_ini }}">
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Encomenda final</label>
-            <input type="number" class="form-control" name="enc_fin" value="{{ filtros.enc_fin }}">
-        </div>
-
-        <!-- Tipo, Subtipo, Gama, Linha -->
-        <div class="col-md-3">
-            <label class="form-label">Tipo</label>
-            <input type="text" class="form-control" name="tipo" value="{{ filtros.tipo }}">
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Subtipo</label>
-            <input type="text" class="form-control" name="subtipo" value="{{ filtros.subtipo }}">
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Gama de cor</label>
-            <input type="text" class="form-control" name="gama_cor" value="{{ filtros.gama_cor }}">
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Linha</label>
-            <select class="form-select" id="linha" name="linha">
-                <option value=""></option> <!-- Default vazio -->
-            </select>
-        </div>
-
-
-        <!-- Ordenação -->
-        <div class="col-md-6">
-            <label class="form-label d-block">Ordenar por</label>
-            <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="ordem" value="1" id="ordem1" {% if filtros.ordem == "1" %}checked{% endif %}>
-                <label class="form-check-label" for="ordem1">Cliente / Tratamento</label>
+            <!-- Tratamento com lupa -->
+            <div class="col-md-3">
+                <label class="form-label">Tratamento inicial</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="trat_ini" name="trat_ini"
+                        value="{{ filtros.trat_ini }}">
+                    <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal"
+                        data-bs-target="#modalTrat" onclick="loadTratamentos('trat_ini')">🔍</button>
+                </div>
             </div>
-            <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="ordem" value="2" id="ordem2" {% if filtros.ordem == "2" %}checked{% endif %}>
-                <label class="form-check-label" for="ordem2">Tratamento / Cliente</label>
+            <div class="col-md-3">
+                <label class="form-label">Tratamento final</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="trat_fin" name="trat_fin"
+                        value="{{ filtros.trat_fin }}">
+                    <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal"
+                        data-bs-target="#modalTrat" onclick="loadTratamentos('trat_fin')">🔍</button>
+                </div>
             </div>
-        </div>
 
-        <!-- Botão Pesquisar -->
-        <div class="col-12">
-            <button type="submit" id="btnPesquisar" class="btn btn-primary">Pesquisar</button>
-            <button type="button" class="btn btn-secondary" onclick="limparFiltros()">Limpar</button>            
-            <button type="button" id="btnImprimir" class="btn btn-success">Imprimir</button>
-            <div id="loading" style="display:none; margin-top:10px;">
-                <span class="spinner-border spinner-border-sm"></span> A processar...
-            </div>            
-        </div>
-    </form>
+            <!-- Requisição e encomenda -->
+            <div class="col-md-3">
+                <label class="form-label">Requisição</label>
+                <input type="text" class="form-control" name="requisicao" value="{{ filtros.requisicao }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Encomenda inicial</label>
+                <input type="number" class="form-control" name="enc_ini" value="{{ filtros.enc_ini }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Encomenda final</label>
+                <input type="number" class="form-control" name="enc_fin" value="{{ filtros.enc_fin }}">
+            </div>
 
-    {% if error_msg %}
+            <!-- Tipo, Subtipo, Gama, Linha -->
+            <div class="col-md-3">
+                <label class="form-label">Tipo</label>
+                <input type="text" class="form-control" name="tipo" value="{{ filtros.tipo }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Subtipo</label>
+                <input type="text" class="form-control" name="subtipo" value="{{ filtros.subtipo }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Gama de cor</label>
+                <input type="text" class="form-control" name="gama_cor" value="{{ filtros.gama_cor }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Linha</label>
+                <select class="form-select" id="linha" name="linha">
+                    <option value=""></option> <!-- Default vazio -->
+                </select>
+            </div>
+
+
+            <!-- Ordenação -->
+            <div class="col-md-6">
+                <label class="form-label d-block">Ordenar por</label>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="ordem" value="1" id="ordem1" {% if
+                        filtros.ordem=="1" %}checked{% endif %}>
+                    <label class="form-check-label" for="ordem1">Cliente / Tratamento</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="ordem" value="2" id="ordem2" {% if
+                        filtros.ordem=="2" %}checked{% endif %}>
+                    <label class="form-check-label" for="ordem2">Tratamento / Cliente</label>
+                </div>
+            </div>
+
+            <!-- Botão Pesquisar -->
+            <div class="col-12">
+                <button type="submit" id="btnPesquisar" class="btn btn-primary">Pesquisar</button>
+                <button type="button" class="btn btn-secondary" onclick="limparFiltros()">Limpar</button>
+                <button type="button" id="btnImprimir" class="btn btn-success">Imprimir</button>
+                <div id="loading" style="display:none; margin-top:10px;">
+                    <span class="spinner-border spinner-border-sm"></span> A processar...
+                </div>
+            </div>
+        </form>
+
+        {% if error_msg %}
         <div class="alert alert-danger mt-3">
             {{ error_msg }}
         </div>
-    {% endif %}
+        {% endif %}
 
-    <!-- Botão de detalhe fora do form de filtros -->
-    <form action="{{ url_for('detalhe') }}" method="POST" style="display:inline;">
-        {% for k, v in filtros.items() %}
+        <!-- Botão de detalhe fora do form de filtros -->
+        <form action="{{ url_for('detalhe') }}" method="POST" style="display:inline;">
+            {% for k, v in filtros.items() %}
             <input type="hidden" name="{{ k }}" value="{{ v }}">
-        {% endfor %}
+            {% endfor %}
 
-        <!-- Adiciona os clientes selecionados -->
-        {% for c in clientes_sel %}
+            <!-- Adiciona os clientes selecionados -->
+            {% for c in clientes_sel %}
             <input type="hidden" name="clientes_sel" value="{{ c }}">
-        {% endfor %}
+            {% endfor %}
 
-        <!-- Adiciona os tratamentos selecionados -->
-        {% for t in trat_sel %}
+            <!-- Adiciona os tratamentos selecionados -->
+            {% for t in trat_sel %}
             <input type="hidden" name="trat_sel" value="{{ t }}">
-        {% endfor %}
+            {% endfor %}
 
-        <button type="submit" class="btn btn-info">🔍 Detalhe</button>
-    </form>
+            <button type="submit" class="btn btn-info">🔍 Detalhe</button>
+        </form>
 
 
-    <!-- Resultados -->    
-    <div class="mt-4">
-        {% if rows %}
+        <!-- Resultados -->
+        <div class="mt-4">
+            {% if rows %}
             <div class="table-responsive" style="max-height:600px; overflow-y:auto;">
                 <table class="table table-striped table-bordered" style="table-layout:auto; width:100%;">
                     <thead class="table-dark">
@@ -187,227 +202,334 @@
                     </tbody>
                 </table>
             </div>
-        {% else %}
+            {% else %}
             <div class="alert alert-warning">Sem resultados para os filtros selecionados.</div>
-        {% endif %}
+            {% endif %}
+        </div>
     </div>
-</div>
 
-<!-- Modal único para tratamentos -->
-<div class="modal fade" id="modalTrat" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Selecionar Tratamento</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <input type="text" id="searchTrat" class="form-control mb-2" placeholder="Pesquisar..." onkeyup="searchTrat()">
-        <ul class="list-group" id="tratList"></ul>
-      </div>
+    <!-- Modal único para tratamentos -->
+    <div class="modal fade" id="modalTrat" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Selecionar Tratamento</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="text" id="searchTrat" class="form-control mb-2" placeholder="Pesquisar..."
+                        onkeyup="searchTrat()">
+                    <ul class="list-group" id="tratList"></ul>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
-</div>
 
-<!-- Modal único para clientes -->
-<div class="modal fade" id="modalCliente" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Selecionar Cliente</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <input type="text" id="searchCliente" class="form-control mb-2" placeholder="Pesquisar..." onkeyup="searchCliente()">
-        <ul class="list-group" id="clienteList"></ul>
-      </div>
+    <!-- Modal único para clientes -->
+    <div class="modal fade" id="modalCliente" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Selecionar Cliente</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="text" id="searchCliente" class="form-control mb-2" placeholder="Pesquisar..."
+                        onkeyup="searchCliente()">
+                    <ul class="list-group" id="clienteList"></ul>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
-</div>
 
-<!-- Rodapé da versão -->
-<footer style="position: fixed; bottom: 5px; right: 10px; font-size: 0.8em; color: #555;">
-    Versão: {{ app_version }}
-</footer>
+    <!-- Modal Imprimir / Visualizar -->
+    <div id="modalImpressao"
+        style="display:none; position:fixed; z-index:10000; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.5);">
+        <div
+            style="background-color:white; margin:15% auto; padding:20px; border-radius:10px; width:320px; text-align:center; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+            <h5 class="mb-4">Opções de Impressão</h5>
+            <div class="d-grid gap-3">
+                <button type="button" class="btn btn-primary" onclick="visualizarCrystal()">
+                    <i class="bi bi-eye"></i> Visualizar (Crystal)
+                </button>
 
-<!-- Scripts no final do body -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-let currentInputId = "";
+                <button type="button" class="btn btn-success" onclick="gerarImpressaoDireta()">
+                    <i class="bi bi-printer"></i> Imprimir Direto
+                </button>
 
-// Tratamentos
-function loadTratamentos(inputId){
-    const list = document.getElementById('tratList');
-    const searchInput = document.getElementById('searchTrat');
-    searchInput.value = "";  // limpa a pesquisa
-    list.innerHTML = '';     // limpa a lista
+                <hr>
+                <button type="button" class="btn btn-secondary"
+                    onclick="document.getElementById('modalImpressao').style.display='none'">Cancelar</button>
+            </div>
+        </div>
+    </div>
 
-    fetch('/tratamentos')
-    .then(response => response.json())
-    .then(data => {
-        data.forEach(trat => {
-            const li = document.createElement('li');
-            li.className = 'list-group-item list-group-item-action';
-            li.textContent = trat;
-            li.onclick = () => {
-                document.getElementById(inputId).value = trat;
-                bootstrap.Modal.getInstance(document.getElementById('modalTrat')).hide();
-            };
-            list.appendChild(li);
-        });
-    });
-}
+    <!-- Rodapé da versão -->
+    <footer style="position: fixed; bottom: 5px; right: 10px; font-size: 0.8em; color: #555;">
+        Versão: {{ app_version }}
+    </footer>
 
-function searchTrat(){
-    let filtro = document.getElementById('searchTrat').value.toLowerCase();
-    let items = document.querySelectorAll('#tratList li');
-    items.forEach(li => {
-        li.style.display = li.textContent.toLowerCase().includes(filtro) ? '' : 'none';
-    });
-}
+    <!-- Scripts no final do body -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentInputId = "";
 
+        // Tratamentos
+        function loadTratamentos(inputId) {
+            const list = document.getElementById('tratList');
+            const searchInput = document.getElementById('searchTrat');
+            searchInput.value = "";  // limpa a pesquisa
+            list.innerHTML = '';     // limpa a lista
 
-// Clientes
-function loadClientes(inputId){
-    const list = document.getElementById('clienteList');
-    const searchInput = document.getElementById('searchCliente');
-    searchInput.value = "";  // limpa a pesquisa
-    list.innerHTML = '';     // limpa a lista
-
-    fetch('/clientes')
-    .then(response => response.json())
-    .then(data => {
-        data.forEach(cliente => {
-            const li = document.createElement('li');
-            li.className = 'list-group-item list-group-item-action';
-            li.textContent = cliente;
-            li.onclick = () => {
-                document.getElementById(inputId).value = cliente;
-                bootstrap.Modal.getInstance(document.getElementById('modalCliente')).hide();
-            };
-            list.appendChild(li);
-        });
-    });
-}
-
-function searchCliente(){
-    let filtro = document.getElementById('searchCliente').value.toLowerCase();
-    let items = document.querySelectorAll('#clienteList li');
-    items.forEach(li => {
-        li.style.display = li.textContent.toLowerCase().includes(filtro) ? '' : 'none';
-    });
-}
-
-// Carregar opções da combobox linha
-function loadLinhas(){
-    fetch('/linhas')
-    .then(response => response.json())
-    .then(data => {
-        let select = document.getElementById('linha');
-        select.innerHTML = '<option value=""></option>'; // Default vazio
-        data.forEach(item => {
-            let opt = document.createElement('option');
-            opt.value = item.value;
-            opt.textContent = item.label;
-            // manter seleção anterior
-            if (item.value === "{{ filtros.linha }}") opt.selected = true;
-            select.appendChild(opt);
-        });
-    });
-}
-
-function limparFiltros() {
-    const hoje = new Date();
-    const anoAtual = hoje.getFullYear();
-    const dataIniDefault = `${anoAtual}-01-01`;
-    const dataFinDefault = hoje.toISOString().slice(0,10);
-
-    // Definir valores default
-    document.querySelector('input[name="data_ini"]').value = dataIniDefault;
-    document.querySelector('input[name="data_fin"]').value = dataFinDefault;
-    document.querySelector('input[name="enc_ini"]').value = 0;
-    document.querySelector('input[name="enc_fin"]').value = 99999999;
-
-    // Restaurar cliente e tratamento com defaults vindos do Flask
-    document.querySelector('input[name="cliente_ini"]').value = "";
-    document.querySelector('input[name="cliente_fin"]').value = "";
-    document.querySelector('input[name="trat_ini"]').value = "";
-    document.querySelector('input[name="trat_fin"]').value = "";
-
-    // Resetar selects (Linha)
-    document.querySelectorAll('select').forEach(select => {
-        select.selectedIndex = 0;
-    });
-
-    // Resetar radio buttons (ordenar)
-    document.querySelectorAll('input[type="radio"]').forEach(radio => {
-        radio.checked = false;
-    });
-
-    // Limpar tabela de resultados
-    const tbody = document.querySelector('table tbody');
-    if(tbody) tbody.innerHTML = '';
-
-    // Limpar mensagem de "Sem resultados"
-    const alert = document.querySelector('.alert');
-    if(alert) alert.remove();
-}
-
-
-
-// Chama no carregamento da página
-window.onload = function(){
-    loadLinhas();
-
-     // Listener do botão imprimir
-     const btnPesquisar = document.getElementById('btnPesquisar');
-    const btn = document.getElementById('btnImprimir');
-    const loading = document.getElementById('loading');
-
-    btn.addEventListener('click', function(e) {
-        e.preventDefault(); // bloqueia qualquer ação padrão
-
-        const tbody = document.querySelector('table tbody');
-        const linhas = tbody ? Array.from(tbody.children).filter(tr => tr.offsetParent !== null) : [];
-
-        if (!tbody || linhas.length === 0) {
-            alert("Não existem resultados para imprimir.");
-            return; // interrompe aqui, nada será feito
+            fetch('/tratamentos')
+                .then(response => response.json())
+                .then(data => {
+                    data.forEach(trat => {
+                        const li = document.createElement('li');
+                        li.className = 'list-group-item list-group-item-action';
+                        li.textContent = trat;
+                        li.onclick = () => {
+                            document.getElementById(inputId).value = trat;
+                            bootstrap.Modal.getInstance(document.getElementById('modalTrat')).hide();
+                        };
+                        list.appendChild(li);
+                    });
+                });
         }
 
-        // Mostrar loading e mudar cursor
-        loading.style.display = 'inline-block';
-        document.body.style.cursor = 'wait';
-
-        // Se houver resultados, segue o fluxo normal
-        const form = document.getElementById('filtrosForm');
-        const formData = new FormData(form);
-
-        fetch('/imprimir', { method: 'POST', body: formData })
-            .then(response => response.blob())
-            .then(blob => {
-                loading.style.display = 'none';
-                document.body.style.cursor = 'default';
-
-                const url = URL.createObjectURL(blob);
-                const iframe = document.createElement('iframe');
-                iframe.style.display = 'none';
-                iframe.src = url;
-                document.body.appendChild(iframe);
-                iframe.onload = function() {
-                    iframe.contentWindow.focus();
-                    iframe.contentWindow.print();
-
-                // depois de imprimir
-                status.textContent = "Impressão concluída com sucesso!";
-            }
-            })
-            .catch(err => console.error(err));
-    });
-};
+        function searchTrat() {
+            let filtro = document.getElementById('searchTrat').value.toLowerCase();
+            let items = document.querySelectorAll('#tratList li');
+            items.forEach(li => {
+                li.style.display = li.textContent.toLowerCase().includes(filtro) ? '' : 'none';
+            });
+        }
 
 
+        // Clientes
+        function loadClientes(inputId) {
+            const list = document.getElementById('clienteList');
+            const searchInput = document.getElementById('searchCliente');
+            searchInput.value = "";  // limpa a pesquisa
+            list.innerHTML = '';     // limpa a lista
 
-</script>
+            fetch('/clientes')
+                .then(response => response.json())
+                .then(data => {
+                    data.forEach(cliente => {
+                        const li = document.createElement('li');
+                        li.className = 'list-group-item list-group-item-action';
+                        li.textContent = cliente;
+                        li.onclick = () => {
+                            document.getElementById(inputId).value = cliente;
+                            bootstrap.Modal.getInstance(document.getElementById('modalCliente')).hide();
+                        };
+                        list.appendChild(li);
+                    });
+                });
+        }
+
+        function searchCliente() {
+            let filtro = document.getElementById('searchCliente').value.toLowerCase();
+            let items = document.querySelectorAll('#clienteList li');
+            items.forEach(li => {
+                li.style.display = li.textContent.toLowerCase().includes(filtro) ? '' : 'none';
+            });
+        }
+
+        // Carregar opções da combobox linha
+        function loadLinhas() {
+            fetch('/linhas')
+                .then(response => response.json())
+                .then(data => {
+                    let select = document.getElementById('linha');
+                    select.innerHTML = '<option value=""></option>'; // Default vazio
+                    data.forEach(item => {
+                        let opt = document.createElement('option');
+                        opt.value = item.value;
+                        opt.textContent = item.label;
+                        // manter seleção anterior
+                        if (item.value === "{{ filtros.linha }}") opt.selected = true;
+                        select.appendChild(opt);
+                    });
+                });
+        }
+
+        function limparFiltros() {
+            const hoje = new Date();
+            const anoAtual = hoje.getFullYear();
+            const dataIniDefault = `${anoAtual}-01-01`;
+            const dataFinDefault = hoje.toISOString().slice(0, 10);
+
+            // Definir valores default
+            document.querySelector('input[name="data_ini"]').value = dataIniDefault;
+            document.querySelector('input[name="data_fin"]').value = dataFinDefault;
+            document.querySelector('input[name="enc_ini"]').value = 0;
+            document.querySelector('input[name="enc_fin"]').value = 99999999;
+
+            // Restaurar cliente e tratamento com defaults vindos do Flask
+            document.querySelector('input[name="cliente_ini"]').value = "";
+            document.querySelector('input[name="cliente_fin"]').value = "";
+            document.querySelector('input[name="trat_ini"]').value = "";
+            document.querySelector('input[name="trat_fin"]').value = "";
+
+            // Resetar selects (Linha)
+            document.querySelectorAll('select').forEach(select => {
+                select.selectedIndex = 0;
+            });
+
+            // Resetar radio buttons (ordenar)
+            document.querySelectorAll('input[type="radio"]').forEach(radio => {
+                radio.checked = false;
+            });
+
+            // Limpar tabela de resultados
+            const tbody = document.querySelector('table tbody');
+            if (tbody) tbody.innerHTML = '';
+
+            // Limpar mensagem de "Sem resultados"
+            const alert = document.querySelector('.alert');
+            if (alert) alert.remove();
+        }
+
+
+
+        // Chama no carregamento da página
+        window.onload = function () {
+            loadLinhas(); // Tua função de carregar a combobox
+
+            const btn = document.getElementById('btnImprimir');
+
+            btn.addEventListener('click', function (e) {
+                // --- PASSO 1: MATAR O GET / SUBMIT ---
+                e.preventDefault();
+                e.stopPropagation();
+
+                // --- PASSO 2: VALIDAÇÃO ORIGINAL ---
+                const tbody = document.querySelector('table tbody');
+                const linhas = tbody ? Array.from(tbody.children).filter(tr => tr.offsetParent !== null) : [];
+
+                if (!tbody || linhas.length === 0 || tbody.innerText.includes("Sem resultados")) {
+                    alert("Não existem resultados para imprimir.");
+                    return;
+                }
+
+                // --- PASSO 3: ABRIR MODAL EM VEZ DE IMPRIMIR LOGO ---
+                document.getElementById('modalImpressao').style.display = 'block';
+            });
+        };
+
+        // FUNÇÃO PARA VISUALIZAR (CRYSTAL REPORTS)
+        function visualizarCrystal() {
+            // console.log("Iniciando visualização Crystal...");
+            document.getElementById('modalImpressao').style.display = 'none';
+
+            // 1. Criar o formulário fantasma
+            const tempForm = document.createElement('form');
+            tempForm.method = 'POST';
+            tempForm.action = '/visualizar_relatorio';
+            // tempForm.target = '_blank';
+
+            // 2. Lista exata dos IDs dos teus inputs no index.html
+            const idsDosCampos = [
+                'data_ini', 'data_fin', 'cliente_ini', 'cliente_fin',
+                'trat_ini', 'trat_fin', 'linha', 'requisicao',
+                'enc_ini', 'enc_fin', 'tipo', 'subtipo', 'gama_cor', 'ordem'
+            ];
+
+            idsDosCampos.forEach(id => {
+                const elemento = document.getElementById(id);
+                if (elemento) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = id; // Nome que o Flask vai ler
+                    input.value = elemento.value;
+                    tempForm.appendChild(input);
+                    // console.log(`Campo ${id} capturado: ${elemento.value}`);
+                // } else {
+                    // console.warn(`Aviso: Elemento com ID '${id}' não encontrado no HTML.`);
+                }
+            });
+
+            // 3. Enviar
+            document.body.appendChild(tempForm);
+            tempForm.submit();
+            document.body.removeChild(tempForm);
+        }
+
+        // FUNÇÃO DE IMPRESSÃO DIRETA (O TEU CÓDIGO ORIGINAL INTEGRADO)
+        function gerarImpressaoDireta() {
+            // 1. Fechar o modal
+            document.getElementById('modalImpressao').style.display = 'none';
+
+            const loading = document.getElementById('loading');
+            const form = document.getElementById('filtrosForm');
+
+            if (loading) loading.style.display = 'inline-block';
+            document.body.style.cursor = 'wait';
+
+            const formData = new FormData(form);
+
+            fetch('/imprimir', { method: 'POST', body: formData })
+                .then(response => {
+                    if (!response.ok) throw new Error("Erro no servidor");
+                    return response.blob();
+                })
+                .then(blob => {
+                    if (loading) loading.style.display = 'none';
+                    document.body.style.cursor = 'default';
+
+                    const url = URL.createObjectURL(blob);
+
+                    // Criamos o iframe mas SEM display:none (alguns .exe ignoram o que não vêem)
+                    const iframe = document.createElement('iframe');
+
+                    // Estilo "invisível" mas presente para o motor da App
+                    Object.assign(iframe.style, {
+                        position: 'fixed',
+                        right: '0',
+                        bottom: '0',
+                        width: '1px',
+                        height: '1px',
+                        border: 'none',
+                        opacity: '0.01',
+                        zIndex: '-1'
+                    });
+
+                    iframe.src = url;
+                    document.body.appendChild(iframe);
+
+                    iframe.onload = function () {
+                        setTimeout(() => {
+                            try {
+                                // Remove qualquer iframe de impressão anterior para não acumular "lixo" no HTML
+                                const antigos = document.querySelectorAll('.print-iframe');
+                                antigos.forEach(el => { if (el !== iframe) el.remove(); });
+
+                                const win = iframe.contentWindow;
+                                win.focus();
+
+                                // Executa a impressão
+                                win.print();
+
+                                // NOTA: Removemos o setTimeout que fazia o .remove()
+                                // O iframe fica no DOM (invisível) para garantir que a janela não fecha
+
+                            } catch (e) {
+                                console.error("Erro ao imprimir:", e);
+                                window.open(url, '_blank');
+                            }
+                        }, 800);
+                    };
+                })
+                .catch(err => {
+                    if (loading) loading.style.display = 'none';
+                    document.body.style.cursor = 'default';
+                    alert("Erro: " + err.message);
+                });
+        }
+
+    </script>
 </body>
+
 </html>
