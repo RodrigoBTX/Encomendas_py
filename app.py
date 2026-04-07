@@ -458,121 +458,80 @@ def imprimir_preview():
 
 @app.route("/detalhe", methods=["GET", "POST"])
 def detalhe():
-    # Filtros vêm do request.form (se vier POST do index) ou ficam vazios
+    # 1. Inicializar variáveis para evitar erros de "UnboundLocalError"
+    rows = []
+    columns = []
+    error_msg = None
+    clientes_lista = []
+    tratamentos_lista = []
+    
+    # Garantir que clientes_sel e trat_sel existem sempre
+    clientes_sel = []
+    trat_sel = []
 
-    # Usar filtros do form (botão detalhe) ou da sessão
-    filtros_form = request.form.to_dict()
-    filtros_sessao = session.get('filtros', {})  # últimos filtros usados
-    filtros = {**filtros_sessao, **filtros_form}  # form sobrescreve sessão
+    try:
+        # Filtros: form sobrescreve sessão
+        filtros_form = request.form.to_dict()
+        filtros_sessao = session.get('filtros', {})
+        filtros = {**filtros_sessao, **filtros_form}
+        session['filtros'] = filtros
 
-    # Armazena de volta na sessão
-    session['filtros'] = filtros
+        # Seleções específicas
+        clientes_sel_raw = request.form.getlist("clientes_sel") or filtros.get("clientes_sel", [])
+        trat_sel_raw = request.form.getlist("trat_sel") or filtros.get("trat_sel", [])
 
-    # Seleções específicas para ranges
-    clientes_sel_raw = request.form.getlist("clientes_sel") or filtros.get("clientes_sel", [])
-    trat_sel_raw = request.form.getlist("trat_sel") or filtros.get("trat_sel", [])
+        # Forçar que sejam listas e limpar espaços
+        if isinstance(clientes_sel_raw, str):
+            clientes_sel = [clientes_sel_raw.strip()]
+        else:
+            clientes_sel = [str(c).strip() for c in clientes_sel_raw if c]
 
-    # Forçar que sejam listas
-    if isinstance(clientes_sel_raw, str):
-        clientes_sel = [clientes_sel_raw.strip()]
-    else:
-        clientes_sel = [c.strip() for c in clientes_sel_raw]
+        if isinstance(trat_sel_raw, str):
+            trat_sel = [trat_sel_raw.strip()]
+        else:
+            trat_sel = [str(t).strip() for t in trat_sel_raw if t]
 
-    if isinstance(trat_sel_raw, str):
-        trat_sel = [trat_sel_raw.strip()]
-    else:
-        trat_sel = [t.strip() for t in trat_sel_raw]
-
-    conn = criar_conexao()
-    cursor = conn.cursor()
-
-    # Carregar lista de clientes segundo os filtros
-    cursor.execute("""
-        EXEC sp_listar_clientes 
-            @data_ini=?, @data_fin=?, 
-            @cliente_ini=?, @cliente_fin=?, 
-            @trat_ini=?, @trat_fin=?, 
-            @req=?, @enc_ini=?, @enc_fin=?, 
-            @tipo=?, @subtipo=?, @gamacor=?, @linha=?
-    """, (
-        filtros.get("data_ini"),
-        filtros.get("data_fin"),
-        filtros.get("cliente_ini"),
-        filtros.get("cliente_fin"),
-        filtros.get("trat_ini"),
-        filtros.get("trat_fin"),
-        filtros.get("requisicao"),
-        filtros.get("enc_ini"),
-        filtros.get("enc_fin"),
-        filtros.get("tipo"),
-        filtros.get("subtipo"),
-        filtros.get("gama_cor"),
-        filtros.get("linha"),
-    ))
-    clientes_lista = [row[0] for row in cursor.fetchall()]
-
-    # Carregar lista de tratamentos segundo os filtros
-    cursor.execute("""
-        EXEC sp_listar_tratamentos 
-            @data_ini=?, @data_fin=?, 
-            @cliente_ini=?, @cliente_fin=?, 
-            @trat_ini=?, @trat_fin=?, 
-            @req=?, @enc_ini=?, @enc_fin=?, 
-            @tipo=?, @subtipo=?, @gamacor=?, @linha=?
-    """, (
-        filtros.get("data_ini"),
-        filtros.get("data_fin"),
-        filtros.get("cliente_ini"),
-        filtros.get("cliente_fin"),
-        filtros.get("trat_ini"),
-        filtros.get("trat_fin"),
-        filtros.get("requisicao"),
-        filtros.get("enc_ini"),
-        filtros.get("enc_fin"),
-        filtros.get("tipo"),
-        filtros.get("subtipo"),
-        filtros.get("gama_cor"),
-        filtros.get("linha"),
-    ))
-    tratamentos_lista = [row[0] for row in cursor.fetchall()]
-
-    rows, columns, error_msg = None, None, None
-
-    # Só executa detalhe se houver seleções
-    if clientes_sel or trat_sel:
-        # range_clientes = ",".join(f"''{c}''" for c in clientes_sel) if clientes_sel else None
-        # range_tratamentos = ",".join(f"''{t}''" for t in trat_sel) if trat_sel else None
-
-        # range_clientes = ";".join(c.replace(";", " ").strip() for c in clientes_sel) if clientes_sel else None
-        # range_tratamentos = ";".join(t.replace(";", " ").strip() for t in trat_sel) if trat_sel else None
-
-        import json
-
-        range_clientes = json.dumps([c.strip() for c in clientes_sel]) if clientes_sel else None
-        range_tratamentos = json.dumps([t.strip() for t in trat_sel]) if trat_sel else None
-
-
-
-        print("➡ Clientes Range:", range_clientes)
-        print("➡ Tratamentos Range:", range_tratamentos)       
-        print("Filtros:", filtros)
-
-        try:           
+        # Conexão
+        conn = criar_conexao()
+        if not conn:
+            return "Erro: Não foi possível ligar à base de dados no outro PC.", 500
             
+        cursor = conn.cursor()
+
+        # Parâmetros comuns para as SPs
+        params_comuns = (
+            filtros.get("data_ini"), filtros.get("data_fin"),
+            filtros.get("cliente_ini"), filtros.get("cliente_fin"),
+            filtros.get("trat_ini"), filtros.get("trat_fin"),
+            filtros.get("requisicao"), filtros.get("enc_ini"), filtros.get("enc_fin"),
+            filtros.get("tipo"), filtros.get("subtipo"), filtros.get("gama_cor"),
+            filtros.get("linha")
+        )
+
+        # Carregar lista de clientes
+        cursor.execute("EXEC sp_listar_clientes " + ", ".join(["?"]*13), params_comuns)
+        clientes_lista = [str(row[0]) for row in cursor.fetchall() if row[0]]
+
+        # Carregar lista de tratamentos
+        cursor.execute("EXEC sp_listar_tratamentos " + ", ".join(["?"]*13), params_comuns)
+        tratamentos_lista = [str(row[0]) for row in cursor.fetchall() if row[0]]
+
+        # Só executa detalhe se houver seleções
+        if clientes_sel or trat_sel:
+            import json
+            range_clientes = json.dumps(clientes_sel) if clientes_sel else None
+            range_tratamentos = json.dumps(trat_sel) if trat_sel else None
+
             cursor.execute("""
                 SET CONCAT_NULL_YIELDS_NULL ON;
                 SET ANSI_WARNINGS ON;
                 SET ANSI_PADDING ON;
-                           
                 EXEC sp_teste_listagem 
-                    @data_ini=?, @data_fin=?, 
-                    @cliente_ini=?, @cliente_fin=?, 
-                    @trat_ini=?, @trat_fin=?, 
-                    @req=?, @enc_ini=?, @enc_fin=?, 
-                    @tipo=?, @subtipo=?, @gamacor=?, @linha=?,@ordem=?, 
+                    @data_ini=?, @data_fin=?, @cliente_ini=?, @cliente_fin=?, 
+                    @trat_ini=?, @trat_fin=?, @req=?, @enc_ini=?, @enc_fin=?, 
+                    @tipo=?, @subtipo=?, @gamacor=?, @linha=?, @ordem=?, 
                     @clientes_json=?, @tratamentos_json=?
-            """, (
-                filtros.get("data_ini"),
+            """, (filtros.get("data_ini"),
                 filtros.get("data_fin"),
                 filtros.get("cliente_ini"),
                 filtros.get("cliente_fin"),
@@ -585,38 +544,38 @@ def detalhe():
                 filtros.get("subtipo"),
                 filtros.get("gama_cor"),
                 filtros.get("linha"),
-                filtros.get("ordem") or 1,
-                range_clientes,
-                range_tratamentos
-            ))
+                filtros.get("ordem") or 1, 
+				range_clientes, 
+				range_tratamentos))
 
-            
-
-            rows = cursor.fetchall()
+            # Capturar dados com tratamento de Nulos
             columns = [desc[0] for desc in cursor.description]
-
+            raw_rows = cursor.fetchall()
             
+            # Converter cada linha para lista e substituir None por ""
+            rows = []
+            for r in raw_rows:
+                processed_row = [("" if val is None else val) for val in r]
+                rows.append(processed_row)
 
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            error_msg = f"Erro ao carregar detalhe: {str(e)}"
+        cursor.close()
+        conn.close()
 
-
-    cursor.close()
-    conn.close()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        error_msg = f"Erro ao carregar detalhe: {str(e)}"
 
     return render_template(
         "detalhe.html",
-        clientes_lista=clientes_lista,   # todos os clientes do SP
-        tratamentos_lista=tratamentos_lista,  # todos os tratamentos do SP
-        clientes_sel=clientes_lista,
-        trat_sel=tratamentos_lista,
+        clientes_lista=clientes_lista,
+        tratamentos_lista=tratamentos_lista,
+        clientes_sel=clientes_sel, # Passar as seleções reais para o template
+        trat_sel=trat_sel,         # Passar as seleções reais para o template
         rows=rows,
         columns=columns,
         error_msg=error_msg
     )
-
 
 
 # executar sps para a impressão
@@ -805,9 +764,14 @@ def format_num(value):
     except (TypeError, ValueError):
         return str(value or "")
 
-@app.route("/imprimir", methods=["POST"])
+@app.route("/imprimir", methods=["GET", "POST"])
 def imprimir():
-    filtros = request.form.to_dict()
+    # Se for POST, usa os dados do formulário. Se for GET, tenta usar os da sessão.
+    if request.method == "POST":
+        filtros = request.form.to_dict()
+    else:
+        filtros = session.get('filtros', {})
+
     resultado = executar_sps(filtros)  # lógica dos SPs já implementada
 
     buffer = io.BytesIO()
