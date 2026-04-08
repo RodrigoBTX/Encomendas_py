@@ -60,7 +60,7 @@ def guardar_config(dsn,database, user, password):
 
 
 # Usa o DSN criado no Windows
-# conn_str = "DSN=Lacoviana;UID=admin-btx;PWD=;DATABASE=PHC_20240310"
+# conn_str = "DSN=;UID=;PWD=;DATABASE="
 def criar_conexao():
     dsn, db, user, password = ler_config()
     if not all([dsn,db, user, password]):
@@ -410,21 +410,33 @@ def imprimir_preview():
                 if linhas:
                     data = [["Artigo", "Descrição", "Qtd", "Medida", "Metros", "Área"]]
                     for l in linhas:
+                        # para não ter arredondamento nos m2
+                        valor_area = l.get("u_mts2") if l.get("u_mts2") is not None else 0
+
+                        # design para não passar para cima de outros campos
+                        descricao_p = Paragraph(str(l.get("design","") or ""), styles["BodySmall"])
+
                         data.append([
                             str(l.get("ref","") or ""),
-                            str(l.get("design","") or ""),
+                            descricao_p,
                             format_num(l.get("qtt")),
                             format_num(l.get("u_medida1","")),
                             format_num(l.get("u_mts")),
-                            format_num(l.get("u_mts2"))
+                            # format_num(l.get("u_mts2"))
+                            "{:.4f}".format(float(valor_area))
                         ])
-                    linhas_table = Table(data, colWidths=[60,200,40,60,60,60], rowHeights=14, repeatRows=1)
+                    linhas_table = Table(data, colWidths=[70, 190, 40, 60, 60, 60], repeatRows=1)
                     linhas_table.setStyle(TableStyle([
                         ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
                         ('FONTSIZE', (0,0), (-1,0), 8),
                         ('ALIGN', (0,0), (-1,0), 'CENTER'),
+                        ('VALIGN', (0,0), (-1,-1), 'TOP'),
                         ('FONTSIZE', (0,1), (-1,-1), 8),
-                        ('ALIGN', (2,1), (-1,-1), 'RIGHT'),
+                        ('ALIGN', (2,1), (-1,-1), 'RIGHT'), # Qtd
+                        ('ALIGN', (3,1), (-1,-1), 'RIGHT'), # Medida
+                        ('ALIGN', (4,1), (-1,-1), 'RIGHT'), # Metros
+                        ('ALIGN', (5,1), (-1,-1), 'RIGHT'), # Área
+                        ('LEFTPADDING', (1,0), (1,-1), 5),
                     ]))
                     flowables += [linhas_table, Spacer(1,6)]
 
@@ -458,7 +470,6 @@ def imprimir_preview():
 
 @app.route("/detalhe", methods=["GET", "POST"])
 def detalhe():
-    # 1. Inicializar variáveis para evitar erros de "UnboundLocalError"
     rows = []
     columns = []
     error_msg = None
@@ -586,7 +597,7 @@ def executar_sps(filtros):
         conn = criar_conexao()
         cursor = conn.cursor()
 
-        # 1. Clientes
+        
         cursor.execute("""
             EXEC sp_clientes 
                 @data_ini=?, @data_fin=?, 
@@ -621,7 +632,7 @@ def executar_sps(filtros):
             cliente_nome = cliente_dict.get("cliente")
             tratamento_cliente = cliente_dict.get("tratamento")
 
-            # 2. Encomendas desse cliente
+            
             cursor.execute("""
                 EXEC sp_encomendas 
                     @data_ini=?, @data_fin=?, 
@@ -649,14 +660,13 @@ def executar_sps(filtros):
             encomendas_data = []
             for enc in encomendas:
                 enc_dict = dict(zip(encomendas_cols, enc))
-                 # Atenção: o SP encomendas já devolve obrano e obranome
                 obrano_enc = enc_dict.get("obrano")       # número da encomenda
                 obranome_enc = enc_dict.get("obranome")   # nome da obra -> vai no @req
                 trat_enc = enc_dict.get("tratamento")
                 cliente_nome = cliente_dict.get("cliente")
                 micros_enc = enc_dict.get("micro", 0)      # micragem , para não duplicar encomendas e para apresentar linhas corretas
 
-                # 3. Linhas da encomenda
+
                 cursor.execute("""
                     EXEC sp_linhas 
                         @req=?, 
@@ -840,21 +850,34 @@ def imprimir():
             if linhas:
                 data = [["Artigo", "Descrição", "Qtd", "Medida", "Metros", "Área"]]
                 for l in linhas:
+                    # Vamos buscar o valor, se for None assume 0
+                    valor_area = l.get("u_mts2") if l.get("u_mts2") is not None else 0
+
+                    # para que a design não passe para cima da qtd
+                    descricao_p = Paragraph(str(l.get("design","") or ""), styles["BodySmall"])
+
                     data.append([
                         str(l.get("ref","") or ""),
-                        str(l.get("design","") or ""),
+                        # str(l.get("design","") or ""),
+                        descricao_p,
                         format_num(l.get("qtt")),
                         format_num(l.get("u_medida1","")),
                         format_num(l.get("u_mts")),
-                        format_num(l.get("u_mts2"))
+                        # format_num(l.get("u_mts2"))
+                        "{:.4f}".format(float(valor_area))  # Força 4 casas decimais aqui
                     ])
-                linhas_table = Table(data, colWidths=[60,200,40,60,60,60], rowHeights=14, repeatRows=1)
+                linhas_table = Table(data, colWidths=[70, 190, 40, 60, 60, 60], repeatRows=1)
                 linhas_table.setStyle(TableStyle([
                     ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
                     ('FONTSIZE', (0,0), (-1,0), 8),
                     ('ALIGN', (0,0), (-1,0), 'CENTER'),
+                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
                     ('FONTSIZE', (0,1), (-1,-1), 8),
-                    ('ALIGN', (2,1), (-1,-1), 'RIGHT'),
+                    ('ALIGN', (2,1), (-1,-1), 'RIGHT'), # Qtd
+                    ('ALIGN', (3,1), (-1,-1), 'RIGHT'), # Medida
+                    ('ALIGN', (4,1), (-1,-1), 'RIGHT'), # Metros
+                    ('ALIGN', (5,1), (-1,-1), 'RIGHT'), # Área
+                    ('LEFTPADDING', (1,0), (1,-1), 5),
                 ]))
                 flowables += [linhas_table, Spacer(1,6)]
 
@@ -943,7 +966,7 @@ def index():
         "subtipo": "",
         "gama_cor": "",
         "linha": "",
-        "ordem": ""  # default
+        "ordem": "2"  # default
     }
 
     if request.method == "POST":

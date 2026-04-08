@@ -33,6 +33,7 @@ Thumbs.db
 .env
 *.sqlite3
 *.ini
+*.info
 
 # --- Frontend / HTML build 
 node_modules/
