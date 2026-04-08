@@ -277,14 +277,14 @@ def visualizar_relatorio():
         session['filtros_preview'] = filtros
         session.modified = True
         
-        # --- DEBUG: Verifica se o Cliente e Linha aparecem aqui no teu terminal ---
+        # --- DEBUG: Verifica se o Cliente e Linha aparecem aqui no terminal ---
         # print(f"\n--- DEBUG VISUALIZAR (POST) ---")
         # print(f"Filtros Recebidos: {filtros}")
     else:
         # print("\n>>> AVISO: Acesso via GET (Filtros não atualizados)\n")
         pass
 
-    # Segurança: Se a sessão estiver vazia (acesso direto via GET), define datas padrão
+    # Se a sessão estiver vazia (acesso direto via GET), define datas padrão
     if not filtros.get('data_ini'):
         from datetime import date
         filtros['data_ini'] = f"{date.today().year}-01-01"
@@ -661,7 +661,7 @@ def executar_sps(filtros):
             for enc in encomendas:
                 enc_dict = dict(zip(encomendas_cols, enc))
                 obrano_enc = enc_dict.get("obrano")       # número da encomenda
-                obranome_enc = enc_dict.get("obranome")   # nome da obra -> vai no @req
+                obranome_enc = enc_dict.get("obranome")   # requisição -> vai no @req
                 trat_enc = enc_dict.get("tratamento")
                 cliente_nome = cliente_dict.get("cliente")
                 micros_enc = enc_dict.get("micro", 0)      # micragem , para não duplicar encomendas e para apresentar linhas corretas

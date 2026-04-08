@@ -373,12 +373,12 @@
             document.querySelector('input[name="trat_ini"]').value = "";
             document.querySelector('input[name="trat_fin"]').value = "";
 
-            // Resetar selects (Linha)
+            // Reset selects (Linha)
             document.querySelectorAll('select').forEach(select => {
                 select.selectedIndex = 0;
             });
 
-            // Resetar radio buttons (ordenar)
+            // Reset radio buttons (ordenar)
             document.querySelectorAll('input[type="radio"]').forEach(radio => {
                 radio.checked = false;
             });
@@ -396,16 +396,14 @@
 
         // Chama no carregamento da página
         window.onload = function () {
-            loadLinhas(); // Tua função de carregar a combobox
+            loadLinhas(); // função de carregar a combobox
 
             const btn = document.getElementById('btnImprimir');
 
-            btn.addEventListener('click', function (e) {
-                // --- PASSO 1: MATAR O GET / SUBMIT ---
+            btn.addEventListener('click', function (e) {                
                 e.preventDefault();
                 e.stopPropagation();
 
-                // --- PASSO 2: VALIDAÇÃO ORIGINAL ---
                 const tbody = document.querySelector('table tbody');
                 const linhas = tbody ? Array.from(tbody.children).filter(tr => tr.offsetParent !== null) : [];
 
@@ -414,23 +412,20 @@
                     return;
                 }
 
-                // --- PASSO 3: ABRIR MODAL EM VEZ DE IMPRIMIR LOGO ---
                 document.getElementById('modalImpressao').style.display = 'block';
             });
         };
 
         // FUNÇÃO PARA VISUALIZAR (CRYSTAL REPORTS)
         function visualizarCrystal() {
-            // console.log("Iniciando visualização Crystal...");
+            // console.log("A Iniciar visualização Crystal...");
             document.getElementById('modalImpressao').style.display = 'none';
 
-            // 1. Criar o formulário fantasma
             const tempForm = document.createElement('form');
             tempForm.method = 'POST';
             tempForm.action = '/visualizar_relatorio';
             // tempForm.target = '_blank';
 
-            // 2. Lista exata dos IDs dos teus inputs no index.html
             const idsDosCampos = [
                 'data_ini', 'data_fin', 'cliente_ini', 'cliente_fin',
                 'trat_ini', 'trat_fin', 'linha', 'requisicao',
@@ -451,15 +446,13 @@
                 }
             });
 
-            // 3. Enviar
             document.body.appendChild(tempForm);
             tempForm.submit();
             document.body.removeChild(tempForm);
         }
 
-        // FUNÇÃO DE IMPRESSÃO DIRETA (O TEU CÓDIGO ORIGINAL INTEGRADO)
+        // FUNÇÃO DE IMPRESSÃO DIRETA 
         function gerarImpressaoDireta() {
-            // 1. Fechar o modal
             document.getElementById('modalImpressao').style.display = 'none';
 
             const loading = document.getElementById('loading');
@@ -481,7 +474,7 @@
 
                     const url = URL.createObjectURL(blob);
 
-                    // Criamos o iframe mas SEM display:none (alguns .exe ignoram o que não vêem)
+                    // Criamos o iframe mas SEM display:none 
                     const iframe = document.createElement('iframe');
 
                     // Estilo "invisível" mas presente para o motor da App
@@ -511,9 +504,6 @@
 
                                 // Executa a impressão
                                 win.print();
-
-                                // NOTA: Removemos o setTimeout que fazia o .remove()
-                                // O iframe fica no DOM (invisível) para garantir que a janela não fecha
 
                             } catch (e) {
                                 console.error("Erro ao imprimir:", e);

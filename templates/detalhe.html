@@ -128,10 +128,10 @@ function toggleCheckboxes(name, checked) {
 }
 
 function dispararImpressao() {
-    // 1. Submete o formulário para o iframe
+    // Submete o formulário para o iframe
     document.getElementById('formImpressaoOculto').submit();
     
-    // 2. Aguarda o carregamento e dispara o diálogo de impressão
+    // Aguarda o carregamento e dispara o diálogo de impressão
     const frame = document.getElementById('printFrame');
     frame.onload = function() {
         frame.contentWindow.focus();
