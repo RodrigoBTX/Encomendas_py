@@ -7,13 +7,92 @@ import zipfile
 import io
 import tkinter as tk
 from tkinter import messagebox, ttk
+from PIL import Image, ImageTk
 
 # ----------------- CONFIGURAÇÃO -----------------
 APP_EXE = "listagem_encomendas_app.exe"
 URL_VERSAO = "https://raw.githubusercontent.com/RodrigoBTX/Encomendas_updates/main/version.txt"
 URL_RELEASE = "https://github.com/RodrigoBTX/Encomendas_updates/releases/latest/download/app.zip"
 VERSAO_LOCAL_FILE = "version.txt"
+LOGO_PATH = "logo.ico"
 # -------------------------------------------------
+
+
+def resource_path(relative_path):
+    
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
+def criar_splash():
+    splash = tk.Toplevel()
+    splash.overrideredirect(True)
+    splash.attributes("-topmost", True)
+    
+    
+    largura, altura = 320, 240 
+    screen_width = splash.winfo_screenwidth()
+    screen_height = splash.winfo_screenheight()
+    x = (screen_width // 2) - (largura // 2)
+    y = (screen_height // 2) - (altura // 2)
+    splash.geometry(f"{largura}x{altura}+{x}+{y}")
+
+    
+    cor_fundo = "#121212" 
+    cor_destaque = "#3498db" 
+    cor_texto_principal = "#ffffff"
+    cor_texto_secundario = "#aaaaaa"
+    
+    splash.configure(bg=cor_fundo)
+
+    # Container para margens internas
+    main_frame = tk.Frame(splash, bg=cor_fundo, padx=20, pady=20)
+    main_frame.pack(expand=True, fill="both")
+
+    try:
+        img_path = resource_path(LOGO_PATH)
+        if os.path.exists(img_path):
+            img = Image.open(img_path)           
+            img = img.convert("RGBA") 
+            img.thumbnail((80, 80), Image.LANCZOS) 
+            photo = ImageTk.PhotoImage(img)
+            
+            label_img = tk.Label(main_frame, image=photo, bg=cor_fundo)
+            label_img.image = photo 
+            label_img.pack(pady=(10, 15))
+    except Exception:        
+        pass
+
+    # Texto Principal
+    tk.Label(main_frame, text="Listagem de Encomendas", 
+             font=("Segoe UI", 14, "bold"), 
+             bg=cor_fundo, fg=cor_texto_principal).pack()
+
+    # Texto de Status 
+    status_label = tk.Label(main_frame, text="A verificar atualizações...", 
+                            font=("Segoe UI", 9), 
+                            bg=cor_fundo, fg=cor_texto_secundario)
+    status_label.pack(pady=(5, 20))
+    
+    style = ttk.Style()
+    style.theme_use('clam') 
+    style.configure("Modern.Horizontal.TProgressbar", 
+                    troughcolor=cor_fundo, 
+                    bordercolor=cor_fundo, 
+                    background=cor_destaque, 
+                    lightcolor=cor_destaque, 
+                    darkcolor=cor_destaque,
+                    thickness=4) 
+
+    progress = ttk.Progressbar(main_frame, mode="indeterminate", 
+                                length=180, style="Modern.Horizontal.TProgressbar")
+    progress.pack()
+    progress.start(15)
+
+    splash.update() 
+    return splash
+
+
 
 def already_open():
     for p in psutil.process_iter(['name', 'exe']):
@@ -108,21 +187,29 @@ def iniciar_app():
 root = tk.Tk()
 root.withdraw()  # Oculta a janela principal do tkinter
 
+splash = criar_splash()
+
 if already_open():
+    splash.destroy()
     messagebox.showinfo("Info", f"O {APP_EXE} já se encontra aberto.")
     sys.exit(0)
 
 # Se o exe não existir, download e extrai o zip
 if not os.path.exists(APP_EXE):
+    splash.withdraw()
     download_e_extrair_zip_com_progresso()
+    splash.deiconify()
 
 # Verifica atualizações se o exe existir
 versao_local = ler_versao_local()
 versao_remota = obter_versao_remota()
 
 if versao_remota and versao_remota != versao_local:
+    splash.withdraw()
     download_e_extrair_zip_com_progresso()
     guardar_versao_local(versao_remota)
+    splash.deiconify()
 
 # Inicia a aplicação principal
+splash.destroy()
 iniciar_app()
