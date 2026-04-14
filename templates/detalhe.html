@@ -1,150 +1,307 @@
 <!DOCTYPE html>
 <html lang="pt">
+
 <head>
     <meta charset="UTF-8">
     <title>🔍 Detalhe Encomendas</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
-        body, html { height: 100%; margin: 0; }
-        .wrapper { display: flex; height: 100vh; }
-        .sidebar { width: 280px; background: #f8f9fa; border-right: 1px solid #ddd; padding: 1rem; overflow-y: auto; }
-        .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-        .content-header { padding: 0.5rem 1rem; border-bottom: 1px solid #ddd; background: #fff; display: flex; align-items: center; justify-content: space-between; }
-        .content-body { flex: 1; overflow-y: auto; padding: 1rem; }
-        th { position: sticky; top: 0; background-color: #343a40 !important; color: white !important; z-index: 10; }
-        .form-check { font-size: 0.85rem; line-height: 1.2; }
-        
-        /* Iframe invisível para impressão */
-        #printFrame { display: none; }
+        body,
+        html {
+            height: 100%;
+            margin: 0;
+        }
+
+        .wrapper {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: #f8f9fa;
+            border-right: 1px solid #ddd;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+
+        .content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .content-header {
+            padding: 0.5rem 1rem;
+            border-bottom: 1px solid #ddd;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+       
+        .content-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 0;
+        }
+
+        #resultsTable {
+            flex: 1;
+            width: 100%;
+            overflow: auto;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .table-responsive {
+            position: relative;
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            background-color: #343a40 !important;
+            color: white !important;
+            z-index: 1020;
+            box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.4);
+        }
+
+        .form-check {
+            font-size: 0.85rem;
+            line-height: 1.2;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: #f8f9fa;
+            border-right: 1px solid #ddd;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .sidebar form {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+            margin-bottom: 1rem;
+        }
+
+        .scroll-box {
+            flex: 1;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 0.5rem;
+            background: #fff;
+        }
+
+        .sidebar-footer {
+            padding-top: 1rem;
+            margin-top: auto;
+        }
+
+        .form-control-sm {
+            font-size: 0.8rem;
+            padding: 0.25rem 0.5rem;
+        }
+
+        .list-item {
+            display: block;
+        }
+
+        #printFrame {
+            display: none;
+        }
     </style>
 </head>
+
 <body>
 
-<div class="wrapper">
-    <div class="sidebar">
-        <h5>Filtros</h5>
-        <form method="POST" id="detalheForm">
-            <h6>Clientes</h6>
-            <div class="mb-2">
-                <div class="btn-group btn-group-sm w-100">
-                    <button type="button" class="btn btn-dark" onclick="toggleCheckboxes('clientes_sel', true)">✔ Selecionar</button>
-                    <button type="button" class="btn btn-light border" onclick="toggleCheckboxes('clientes_sel', false)">✖ Limpar</button>
-                </div>
-            </div>
-            <div class="border p-2 mb-3" style="max-height:40vh; overflow-y:auto;">
-                {% for c in clientes_lista %}
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="clientes_sel" value="{{ c }}"
-                               {% if c in clientes_sel %}checked{% endif %}>
-                        <label class="form-check-label">{{ c }}</label>
+    <div class="wrapper">
+        <div class="sidebar">
+            <h5>Filtros</h5>
+            <form method="POST" id="detalheForm">
+
+                <div class="filter-group">
+                    <h6>Clientes</h6>
+                    <div class="mb-1">
+                        <div class="btn-group btn-group-sm w-100 mb-1">
+                            <button type="button" class="btn btn-dark"
+                                onclick="toggleCheckboxes('clientes_sel', true)">✔</button>
+                            <button type="button" class="btn btn-light border"
+                                onclick="toggleCheckboxes('clientes_sel', false)">✖</button>
+                        </div>
+                        <input type="text" class="form-control form-control-sm" placeholder="Filtrar clientes..."
+                            onkeyup="filterList(this, 'clientesList')">
                     </div>
-                {% endfor %}
-            </div>
-
-            <h6>Tratamentos</h6>
-            <div class="mb-2">
-                <div class="btn-group btn-group-sm w-100">
-                    <button type="button" class="btn btn-dark" onclick="toggleCheckboxes('trat_sel', true)">✔ Selecionar</button>
-                    <button type="button" class="btn btn-light border" onclick="toggleCheckboxes('trat_sel', false)">✖ Limpar</button>
-                </div>
-            </div>
-            <div class="border p-2 mb-3" style="max-height:40vh; overflow-y:auto;">
-                {% for t in tratamentos_lista %}
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="trat_sel" value="{{ t }}"
-                               {% if t in trat_sel %}checked{% endif %}>
-                        <label class="form-check-label">{{ t }}</label>
+                    <div class="scroll-box" id="clientesList">
+                        {% for c in clientes_lista %}
+                        <div class="form-check list-item">
+                            <input class="form-check-input" type="checkbox" name="clientes_sel" value="{{ c }}" {% if c
+                                in clientes_sel %}checked{% endif %}>
+                            <label class="form-check-label">{{ c }}</label>
+                        </div>
+                        {% endfor %}
                     </div>
-                {% endfor %}
-            </div>
+                </div>
 
-            <button type="submit" class="btn btn-primary w-100">Aplicar Filtros</button>
-            <a href="{{ url_for('index') }}" class="btn btn-secondary w-100 mt-2">⬅ Voltar</a>
-        </form>
-    </div>
+                <div class="filter-group">
+                    <h6>Tratamentos</h6>
+                    <div class="mb-1">
+                        <div class="btn-group btn-group-sm w-100 mb-1">
+                            <button type="button" class="btn btn-dark"
+                                onclick="toggleCheckboxes('trat_sel', true)">✔</button>
+                            <button type="button" class="btn btn-light border"
+                                onclick="toggleCheckboxes('trat_sel', false)">✖</button>
+                        </div>
+                        <input type="text" class="form-control form-control-sm" placeholder="Filtrar tratamentos..."
+                            onkeyup="filterList(this, 'tratList')">
+                    </div>
+                    <div class="scroll-box" id="tratList">
+                        {% for t in tratamentos_lista %}
+                        <div class="form-check list-item">
+                            <input class="form-check-input" type="checkbox" name="trat_sel" value="{{ t }}" {% if t in
+                                trat_sel %}checked{% endif %}>
+                            <label class="form-check-label">{{ t }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
 
-    <div class="content">
-        <div class="content-header">
-            <h5 class="mb-0">🔍 Detalhe Encomendas</h5>
-            <div class="d-flex align-items-center gap-2">
-                {% if rows %}
+                <div class="sidebar-footer">
+                    <button type="submit" class="btn btn-primary w-100">Aplicar Filtros</button>
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary w-100 mt-2">⬅ Voltar</a>
+                </div>
+            </form>
+        </div>
+        <div class="content">
+            <div class="content-header">
+                <h5 class="mb-0">🔍 Detalhe Encomendas</h5>
+                <div class="d-flex align-items-center gap-2">
+                    {% if rows %}
                     <button type="button" class="btn btn-success btn-sm" onclick="dispararImpressao()">
                         <i class="bi bi-printer"></i> Imprimir PDF
                     </button>
-                {% endif %}
+                    {% endif %}
+                </div>
             </div>
-        </div>
-
-        <div class="content-body">
-            <div id="loading" style="display:none;" class="text-center my-5">
-                <div class="spinner-border text-primary" role="status"></div>
-                <p class="mt-2">A carregar listagem...</p>
+            <div id="loadingPrint" style="display:none;" class="alert alert-info shadow-sm py-2">
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <div class="spinner-border spinner-border-sm text-info" role="status"></div>
+                    <span><strong>A preparar PDF...</strong> Por favor, aguarde a pré-visualização.</span>
+                </div>
             </div>
+            <div class="content-body">
+                <div id="loading" style="display:none;" class="text-center my-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2">A carregar listagem...</p>
+                </div>
 
-            {% if rows %}
+                {% if rows %}
                 <div class="table-responsive" id="resultsTable">
-                    <table class="table table-striped table-bordered table-sm">
+                    <table class="table table-striped table-bordered table-sm m-0">
                         <thead class="table-dark">
                             <tr>
                                 {% for col in columns %}
-                                    <th>{{ col }}</th>
+                                <th>{{ col }}</th>
                                 {% endfor %}
                             </tr>
                         </thead>
                         <tbody>
                             {% for row in rows %}
-                                <tr>
-                                    {% for col in row %}
-                                        <td>{{ col }}</td>
-                                    {% endfor %}
-                                </tr>
+                            <tr>
+                                {% for col in row %}
+                                <td>{{ col }}</td>
+                                {% endfor %}
+                            </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
-            {% else %}
-                <div class="alert alert-warning" id="noResults">Selecione clientes/tratamentos para ver resultados.</div>
-            {% endif %}
+                {% else %}
+                <div class="alert alert-warning" id="noResults">Selecione clientes/tratamentos para ver resultados.
+                </div>
+                {% endif %}
+            </div>
         </div>
     </div>
-</div>
 
-<form id="formImpressaoOculto" action="{{ url_for('imprimir') }}" method="POST" target="printFrame" style="display:none;">
-    {% if session.get('filtros') %}
+    <form id="formImpressaoOculto" action="{{ url_for('imprimir') }}" method="POST" target="printFrame"
+        style="display:none;">
+        {% if session.get('filtros') %}
         {% for key, value in session['filtros'].items() %}
-            <input type="hidden" name="{{ key }}" value="{{ value }}">
+        <input type="hidden" name="{{ key }}" value="{{ value }}">
         {% endfor %}
-    {% endif %}
-    {% for c in clientes_sel %}<input type="hidden" name="clientes_sel" value="{{ c }}">{% endfor %}
-    {% for t in trat_sel %}<input type="hidden" name="trat_sel" value="{{ t }}">{% endfor %}
-</form>
+        {% endif %}
+        {% for c in clientes_sel %}<input type="hidden" name="clientes_sel" value="{{ c }}">{% endfor %}
+        {% for t in trat_sel %}<input type="hidden" name="trat_sel" value="{{ t }}">{% endfor %}
+    </form>
 
-<iframe id="printFrame" name="printFrame"></iframe>
+    <iframe id="printFrame" name="printFrame"></iframe>
 
-<script>
-function toggleCheckboxes(name, checked) {
-    document.querySelectorAll(`input[name="${name}"]`).forEach(cb => { cb.checked = checked; });
-}
+    <script>
+        function toggleCheckboxes(name, checked) {
+            document.querySelectorAll(`input[name="${name}"]`).forEach(cb => { cb.checked = checked; });
+        }
 
-function dispararImpressao() {
-    // Submete o formulário para o iframe
-    document.getElementById('formImpressaoOculto').submit();
-    
-    // Aguarda o carregamento e dispara o diálogo de impressão
-    const frame = document.getElementById('printFrame');
-    frame.onload = function() {
-        frame.contentWindow.focus();
-        frame.contentWindow.print();
-    };
-}
+        function filterList(input, listId) {
+            const filter = input.value.toLowerCase();
+            const list = document.getElementById(listId);
+            const items = list.getElementsByClassName('list-item');
 
-document.getElementById("detalheForm").addEventListener("submit", function() {
-    document.getElementById("loading").style.display = "block";
-    let resultsTable = document.getElementById("resultsTable");
-    if (resultsTable) resultsTable.style.display = "none";
-});
-</script>
+            for (let i = 0; i < items.length; i++) {
+                const label = items[i].getElementsByTagName('label')[0];
+                const textValue = label.textContent || label.innerText;
+
+                if (textValue.toLowerCase().indexOf(filter) > -1) {
+                    items[i].style.display = "";
+                } else {
+                    items[i].style.display = "none";
+                }
+            }
+        }
+
+        function dispararImpressao() {
+            const aviso = document.getElementById('loadingPrint');
+            aviso.style.display = "block";
+
+            document.getElementById('formImpressaoOculto').submit();
+
+            const frame = document.getElementById('printFrame');
+
+            frame.onload = function () {
+                aviso.style.display = "none";
+
+                try {
+                    frame.contentWindow.focus();
+                    frame.contentWindow.print();
+                } catch (e) {
+                    console.error("Erro ao abrir diálogo de impressão:", e);
+                    alert("O PDF foi gerado, mas o navegador bloqueou a abertura automática. Verifique o pop-up.");
+                }
+            };
+        }
+
+        document.getElementById("detalheForm").addEventListener("submit", function () {
+            document.getElementById("loading").style.display = "block";
+            let resultsTable = document.getElementById("resultsTable");
+            if (resultsTable) resultsTable.style.display = "none";
+        });
+    </script>
 
 </body>
+
 </html>

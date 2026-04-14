@@ -7,6 +7,8 @@ import base64
 import webbrowser
 from threading import Timer
 
+from reportlab.lib import styles
+
 
 
 app = Flask(__name__)
@@ -256,6 +258,53 @@ def linhas():
     return jsonify([{"value": r[0], "label": r[1]} for r in rows])
 
 
+@app.route("/gamas_cores")
+def gamas_cores():
+    conn = criar_conexao()
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT gamacor, gamacor FROM u_tratamentos (NOLOCK)")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+  
+    return jsonify([{"value": r[0], "label": r[1]} for r in rows])
+
+
+@app.route("/tipos_trat")
+def tipos_trat():
+    conn = criar_conexao()
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT tipo, tipo FROM u_tratamentos (NOLOCK)")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    return jsonify([{"value": r[0], "label": r[1]} for r in rows])
+
+
+@app.route("/subtipos_trat")
+def subtipos_trat():
+    tipo_selecionado = request.args.get('tipo', '')
+    
+    conn = criar_conexao()
+    cursor = conn.cursor()
+    
+    # Se houver um tipo selecionado, filtramos; caso contrário, trazemos tudo ou vazio
+    if tipo_selecionado:
+        query = "SELECT DISTINCT subtipo, subtipo FROM u_tratamentos (NOLOCK) WHERE tipo = ? "
+        cursor.execute(query, (tipo_selecionado,))
+    else:
+        # Se não houver tipo, podes decidir retornar vazio ou todos
+        cursor.execute("SELECT DISTINCT subtipo, subtipo FROM u_tratamentos (NOLOCK)")
+        
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    return jsonify([{"value": r[0], "label": r[1]} for r in rows])
+
+
+
 # visualização do crystal
 @app.route("/visualizar_relatorio", methods=["GET", "POST"])
 def visualizar_relatorio():
@@ -340,8 +389,8 @@ def imprimir_preview():
                             topMargin=130, bottomMargin=50)
     
     styles = getSampleStyleSheet()
-    styles.add(ParagraphStyle(name="BodySmallBold", fontSize=9, leading=11, fontName="Helvetica-Bold"))
-    styles.add(ParagraphStyle(name="BodySmall", fontSize=8, leading=10))
+    styles.add(ParagraphStyle(name="BodySmallBold", fontSize=9, leading=11, fontName=FONTE_BOLD))
+    styles.add(ParagraphStyle(name="BodySmall", fontSize=8, leading=10, fontName=FONTE_BASE))
     styles.add(ParagraphStyle(name="Aviso", fontSize=14, leading=16, alignment=1, textColor=colors.red))
 
     elements = []
@@ -376,9 +425,20 @@ def imprimir_preview():
                 ]))
                 flowables += [cliente_table, Spacer(1,4)]
 
+                data_ori = d.get("dataobra")
+                try:
+                    if data_ori:
+                        # Formata para DD-MM-AAAA
+                        data_f = pd.to_datetime(data_ori).strftime('%d-%m-%Y')
+                    else:
+                        data_f = ""
+                except:
+                    data_f = str(data_ori)
+
                 # Encomenda
-                data_encom = [["Encomenda", "Requisição", "Acabamento", "Micragem", "Conf"], [
+                data_encom = [["Encomenda", "", "Requisição", "Acabamento", "Micragem", "Conf"], [
                     str(d.get("obrano","") or ""),
+                    data_f,
                     str(d.get("obranome","") or ""),
                     str(d.get("tratamento","") or ""),
                     str(d.get("micro","") or ""),
@@ -390,19 +450,26 @@ def imprimir_preview():
                 descri = d.get("descri", "")
                 if descri:
                     data_encom.append([
-                        "", "",  # espaço nas primeiras duas colunas
+                        "", "", "",  # espaço nas primeiras duas colunas
                         Paragraph(f"<b><font size=7>{descri}</font></b>", styles["BodySmall"]),  # menor e bold
                     "", ""
                     ])
 
-                encom_table = Table(data_encom, colWidths=[70, 120, 150, 70, 50], repeatRows=1)
+                encom_table = Table(data_encom, colWidths=[60, 70, 140, 160, 50, 50], repeatRows=1)
                 encom_table.setStyle(TableStyle([
-                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('FONTNAME', (0,0), (-1,0), FONTE_BOLD),
                     ('FONTSIZE', (0,0), (-1,0), 9),
                     ('ALIGN', (0,0), (-1,0), 'CENTER'),
+                    ('FONTNAME', (0,1), (-1,-1), FONTE_BASE),
                     ('FONTSIZE', (0,1), (-1,-1), 8),
-                    ('ALIGN', (0,1), (-1,-1), 'LEFT'),
-                    ('SPAN', (2,2), (4,2)),  
+                    ('ALIGN', (0,1), (1,-1), 'LEFT'),
+                    ('ALIGN', (2,1), (2,-1), 'CENTER'),
+                    ('ALIGN', (3,1), (3,-1), 'CENTER'),
+                    ('ALIGN', (4,1), (4,-1), 'CENTER'),
+                    ('ALIGN', (5,1), (5,-1), 'CENTER'),
+                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                    ('SPAN', (3,2), (5,2)),
+                    ('ALIGN', (3,2), (3,2), 'LEFT'),  
                 ]))
                 flowables += [encom_table, Spacer(1,4)]
 
@@ -412,6 +479,10 @@ def imprimir_preview():
                     for l in linhas:
                         # para não ter arredondamento nos m2
                         valor_area = l.get("u_mts2") if l.get("u_mts2") is not None else 0
+
+                        val_float = float(valor_area)
+
+                        valor_area_formatado = "{:.4f}".format(val_float).rstrip('0').rstrip('.')
 
                         # design para não passar para cima de outros campos
                         descricao_p = Paragraph(str(l.get("design","") or ""), styles["BodySmall"])
@@ -423,20 +494,21 @@ def imprimir_preview():
                             format_num(l.get("u_medida1","")),
                             format_num(l.get("u_mts")),
                             # format_num(l.get("u_mts2"))
-                            "{:.4f}".format(float(valor_area))
+                            valor_area_formatado
                         ])
-                    linhas_table = Table(data, colWidths=[70, 190, 40, 60, 60, 60], repeatRows=1)
+                    linhas_table = Table(data, colWidths=[80, 190, 40, 60, 60, 60], repeatRows=1)
                     linhas_table.setStyle(TableStyle([
-                        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                        ('FONTNAME', (0,0), (-1,0), FONTE_BOLD),
                         ('FONTSIZE', (0,0), (-1,0), 8),
                         ('ALIGN', (0,0), (-1,0), 'CENTER'),
                         ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                        ('FONTNAME', (0,1), (-1,-1), FONTE_BASE),
                         ('FONTSIZE', (0,1), (-1,-1), 8),
                         ('ALIGN', (2,1), (-1,-1), 'RIGHT'), # Qtd
                         ('ALIGN', (3,1), (-1,-1), 'RIGHT'), # Medida
                         ('ALIGN', (4,1), (-1,-1), 'RIGHT'), # Metros
                         ('ALIGN', (5,1), (-1,-1), 'RIGHT'), # Área
-                        ('LEFTPADDING', (1,0), (1,-1), 5),
+                        ('LEFTPADDING', (1,0), (1,-1), 20),
                     ]))
                     flowables += [linhas_table, Spacer(1,6)]
 
@@ -444,7 +516,7 @@ def imprimir_preview():
                 totais_table = Table([[f"Total Qtd: {format_num(d.get('qtt',0))}    Total m2: {format_num(d.get('m2',0))}"]],
                                     colWidths=[530])
                 totais_table.setStyle(TableStyle([
-                    ('FONTNAME', (0,0), (-1,-1), 'Helvetica-Bold'),
+                    ('FONTNAME', (0,0), (-1,-1), FONTE_BOLD),
                     ('ALIGN', (0,0), (-1,-1), 'RIGHT'),
                     ('FONTSIZE', (0,0), (-1,-1), 9),
                 ]))
@@ -716,9 +788,20 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from datetime import datetime
 import io
 from reportlab.pdfgen import canvas as pdf_canvas
+
+try:
+    pdfmetrics.registerFont(TTFont('Arial', 'arial.ttf'))
+    pdfmetrics.registerFont(TTFont('Arial-Bold', 'arialbd.ttf'))
+    FONTE_BASE = 'Arial'
+    FONTE_BOLD = 'Arial-Bold'
+except:
+    FONTE_BASE = 'Helvetica'
+    FONTE_BOLD = 'Helvetica-Bold'
 
 # Canvas personalizado para numerar páginas "Página X de Y"
 class NumberedCanvas(pdf_canvas.Canvas):
@@ -740,7 +823,7 @@ class NumberedCanvas(pdf_canvas.Canvas):
 
     def draw_page_number(self, page_count):
         largura, _ = A4
-        self.setFont("Helvetica", 8)
+        self.setFont(FONTE_BASE, 8)
         self.drawCentredString(largura / 2, 20, f"Página {self._pageNumber} de {page_count}")
 
 def cabecalho(canvas, doc, filtros):
@@ -749,13 +832,13 @@ def cabecalho(canvas, doc, filtros):
 
     canvas.setLineWidth(0.8)
     canvas.line(30, altura - 40, largura - 30, altura - 40)   # barra superior
-    canvas.setFont("Helvetica-Bold", 11)
+    canvas.setFont(FONTE_BOLD, 11)
     canvas.drawString(35, altura - 55, "Lista de Encomendas")
     canvas.drawRightString(largura - 35, altura - 55,
                            "LACOVIANA - Trat. e Lac. Alumínios de Viana, Lda")
     canvas.line(30, altura - 70, largura - 30, altura - 70)   # barra inferior
 
-    canvas.setFont("Helvetica", 8)
+    canvas.setFont(FONTE_BASE, 8)
     canvas.drawString(35, altura - 85, agora)
     canvas.drawRightString(largura - 35, altura - 85,
                            f"Datas: {filtros.get('data_ini')} a {filtros.get('data_fin')}")
@@ -790,8 +873,8 @@ def imprimir():
                             topMargin=130, bottomMargin=50)
 
     styles = getSampleStyleSheet()
-    styles.add(ParagraphStyle(name="BodySmallBold", fontSize=9, leading=11, fontName="Helvetica-Bold"))
-    styles.add(ParagraphStyle(name="BodySmall", fontSize=8, leading=10))
+    styles.add(ParagraphStyle(name="BodySmallBold", fontSize=9, leading=11, fontName=FONTE_BOLD))
+    styles.add(ParagraphStyle(name="BodySmall", fontSize=8, leading=10, fontName=FONTE_BASE))
 
     elements = []
 
@@ -816,9 +899,20 @@ def imprimir():
             ]))
             flowables += [cliente_table, Spacer(1,4)]
 
+            data_ori = d.get("dataobra")
+            try:
+                if data_ori:
+                    # Formata para DD-MM-AAAA
+                    data_f = pd.to_datetime(data_ori).strftime('%d-%m-%Y')
+                else:
+                    data_f = ""
+            except:
+                    data_f = str(data_ori)
+
             # Encomenda
-            data_encom = [["Encomenda", "Requisição", "Acabamento", "Micragem", "Conf"], [
+            data_encom = [["Encomenda", "", "Requisição", "Acabamento", "Micragem", "Conf"], [
                 str(d.get("obrano","") or ""),
+                data_f,
                 str(d.get("obranome","") or ""),
                 str(d.get("tratamento","") or ""),
                 str(d.get("micro","") or ""),
@@ -830,19 +924,26 @@ def imprimir():
             descri = d.get("descri", "")
             if descri:
                 data_encom.append([
-                    "", "",  # espaço nas primeiras duas colunas
+                    "", "", "",  # espaço nas primeiras duas colunas
                     Paragraph(f"<b><font size=7>{descri}</font></b>", styles["BodySmall"]),  # menor e bold
                 "", ""
                 ])
 
-            encom_table = Table(data_encom, colWidths=[70, 120, 150, 70, 50], repeatRows=1)
+            encom_table = Table(data_encom, colWidths=[60, 70, 140, 160, 50, 50], repeatRows=1)
             encom_table.setStyle(TableStyle([
-                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('FONTNAME', (0,0), (-1,0), FONTE_BOLD),
                 ('FONTSIZE', (0,0), (-1,0), 9),
                 ('ALIGN', (0,0), (-1,0), 'CENTER'),
+                ('FONTNAME', (0,1), (-1,-1), FONTE_BASE),
                 ('FONTSIZE', (0,1), (-1,-1), 8),
-                ('ALIGN', (0,1), (-1,-1), 'LEFT'),
-                ('SPAN', (2,2), (4,2)),  
+                ('ALIGN', (0,1), (1,-1), 'LEFT'),
+                ('ALIGN', (2,1), (2,-1), 'CENTER'),
+                ('ALIGN', (3,1), (3,-1), 'CENTER'),
+                ('ALIGN', (4,1), (4,-1), 'CENTER'),
+                ('ALIGN', (5,1), (5,-1), 'CENTER'),
+                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('SPAN', (3,2), (5,2)),
+                ('ALIGN', (3,2), (3,2), 'LEFT'),  
             ]))
             flowables += [encom_table, Spacer(1,4)]
 
@@ -852,6 +953,10 @@ def imprimir():
                 for l in linhas:
                     # Vamos buscar o valor, se for None assume 0
                     valor_area = l.get("u_mts2") if l.get("u_mts2") is not None else 0
+
+                    val_float = float(valor_area)
+
+                    valor_area_formatado = "{:.4f}".format(val_float).rstrip('0').rstrip('.')
 
                     # para que a design não passe para cima da qtd
                     descricao_p = Paragraph(str(l.get("design","") or ""), styles["BodySmall"])
@@ -864,20 +969,21 @@ def imprimir():
                         format_num(l.get("u_medida1","")),
                         format_num(l.get("u_mts")),
                         # format_num(l.get("u_mts2"))
-                        "{:.4f}".format(float(valor_area))  # Força 4 casas decimais aqui
+                        valor_area_formatado  # Força 4 casas decimais aqui
                     ])
-                linhas_table = Table(data, colWidths=[70, 190, 40, 60, 60, 60], repeatRows=1)
+                linhas_table = Table(data, colWidths=[80, 190, 40, 60, 60, 60], repeatRows=1)
                 linhas_table.setStyle(TableStyle([
-                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('FONTNAME', (0,0), (-1,0), FONTE_BOLD),
                     ('FONTSIZE', (0,0), (-1,0), 8),
                     ('ALIGN', (0,0), (-1,0), 'CENTER'),
                     ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                    ('FONTNAME', (0,1), (-1,-1), FONTE_BASE),
                     ('FONTSIZE', (0,1), (-1,-1), 8),
                     ('ALIGN', (2,1), (-1,-1), 'RIGHT'), # Qtd
                     ('ALIGN', (3,1), (-1,-1), 'RIGHT'), # Medida
                     ('ALIGN', (4,1), (-1,-1), 'RIGHT'), # Metros
                     ('ALIGN', (5,1), (-1,-1), 'RIGHT'), # Área
-                    ('LEFTPADDING', (1,0), (1,-1), 5),
+                    ('LEFTPADDING', (1,0), (1,-1), 20),
                 ]))
                 flowables += [linhas_table, Spacer(1,6)]
 
@@ -885,7 +991,7 @@ def imprimir():
             totais_table = Table([[f"Total Qtd: {format_num(d.get('qtt',0))}    Total m2: {format_num(d.get('m2',0))}"]],
                                  colWidths=[530])
             totais_table.setStyle(TableStyle([
-                ('FONTNAME', (0,0), (-1,-1), 'Helvetica-Bold'),
+                ('FONTNAME', (0,0), (-1,-1), FONTE_BOLD),
                 ('ALIGN', (0,0), (-1,-1), 'RIGHT'),
                 ('FONTSIZE', (0,0), (-1,-1), 9),
             ]))
@@ -1010,6 +1116,11 @@ def index():
 import threading
 import webview
 
+# crio um dicionário, para colocar a mensagem de confirmação de saída em português, já que o webview é em inglês por padrão
+portugues = {
+    'global.quitConfirmation': 'Tem a certeza que deseja sair da aplicação?'
+}
+
 if __name__ == "__main__":
     port = 5000
 
@@ -1020,5 +1131,5 @@ if __name__ == "__main__":
     threading.Thread(target=start_flask, daemon=True).start()
 
     # Abre numa janela nativa (sem precisar do Chrome/Edge)
-    webview.create_window("Encomendas", f"http://127.0.0.1:{port}")
-    webview.start()
+    webview.create_window("Encomendas", f"http://127.0.0.1:{port}",confirm_close=True)
+    webview.start(localization=portugues)

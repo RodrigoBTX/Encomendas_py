@@ -19,6 +19,25 @@
         .table-responsive {
             overflow-x: auto;
         }
+
+        .sticky-search {
+            position: sticky;
+            top: -16px;
+            background-color: white !important;
+            z-index: 1060;
+
+            margin: -16px -16px 10px -16px;
+            padding: 16px 16px 10px 16px;
+
+            border-bottom: 1px solid #dee2e6;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+
+
+        #clienteList,
+        #tratList {
+            min-height: 200px;
+        }
     </style>
 </head>
 
@@ -107,15 +126,21 @@
             <!-- Tipo, Subtipo, Gama, Linha -->
             <div class="col-md-3">
                 <label class="form-label">Tipo</label>
-                <input type="text" class="form-control" name="tipo" value="{{ filtros.tipo }}">
+                <select class="form-select" id="tipo" name="tipo">
+                    <option value=""></option>
+                </select>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Subtipo</label>
-                <input type="text" class="form-control" name="subtipo" value="{{ filtros.subtipo }}">
+                <select class="form-select" id="subtipo" name="subtipo">
+                    <option value=""></option>
+                </select>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Gama de cor</label>
-                <input type="text" class="form-control" name="gama_cor" value="{{ filtros.gama_cor }}">
+                <select class="form-select" id="gama_cor" name="gama_cor">
+                    <option value=""></option>
+                </select>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Linha</label>
@@ -158,24 +183,28 @@
         {% endif %}
 
         <!-- Botão de detalhe fora do form de filtros -->
-        <form action="{{ url_for('detalhe') }}" method="POST" style="display:inline;">
-            {% for k, v in filtros.items() %}
-            <input type="hidden" name="{{ k }}" value="{{ v }}">
-            {% endfor %}
+        <div class="mt-3">
+            <form id="formDetalhe" action="{{ url_for('detalhe') }}" method="POST" style="display:inline;">
+                {% for k, v in filtros.items() %}
+                <input type="hidden" name="{{ k }}" value="{{ v }}">
+                {% endfor %}
 
-            <!-- Adiciona os clientes selecionados -->
-            {% for c in clientes_sel %}
-            <input type="hidden" name="clientes_sel" value="{{ c }}">
-            {% endfor %}
+                <!-- Adiciona os clientes selecionados -->
+                {% for c in clientes_sel %}
+                <input type="hidden" name="clientes_sel" value="{{ c }}">
+                {% endfor %}
 
-            <!-- Adiciona os tratamentos selecionados -->
-            {% for t in trat_sel %}
-            <input type="hidden" name="trat_sel" value="{{ t }}">
-            {% endfor %}
+                <!-- Adiciona os tratamentos selecionados -->
+                {% for t in trat_sel %}
+                <input type="hidden" name="trat_sel" value="{{ t }}">
+                {% endfor %}
 
-            <button type="submit" class="btn btn-info">🔍 Detalhe</button>
-        </form>
-
+                <button type="button" class="btn btn-info d-inline-flex align-items-center gap-2"
+                    onclick="submeterDetalhe()">
+                    <i class="bi bi-search"></i> Detalhe
+                </button>
+            </form>
+        </div>
 
         <!-- Resultados -->
         <div class="mt-4">
@@ -217,8 +246,10 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <input type="text" id="searchTrat" class="form-control mb-2" placeholder="Pesquisar..."
-                        onkeyup="searchTrat()">
+                    <div class="sticky-search">
+                        <input type="text" id="searchTrat" class="form-control" placeholder="Pesquisar..."
+                            onkeyup="searchTrat()">
+                    </div>
                     <ul class="list-group" id="tratList"></ul>
                 </div>
             </div>
@@ -234,8 +265,10 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <input type="text" id="searchCliente" class="form-control mb-2" placeholder="Pesquisar..."
-                        onkeyup="searchCliente()">
+                    <div class="sticky-search">
+                        <input type="text" id="searchCliente" class="form-control" placeholder="Pesquisar..."
+                            onkeyup="searchCliente()">
+                    </div>
                     <ul class="list-group" id="clienteList"></ul>
                 </div>
             </div>
@@ -250,7 +283,7 @@
             <h5 class="mb-4">Opções de Impressão</h5>
             <div class="d-grid gap-3">
                 <button type="button" class="btn btn-primary" onclick="visualizarCrystal()">
-                    <i class="bi bi-eye"></i> Visualizar (Crystal)
+                    <i class="bi bi-eye"></i> Visualizar
                 </button>
 
                 <button type="button" class="btn btn-success" onclick="gerarImpressaoDireta()">
@@ -339,18 +372,90 @@
 
         // Carregar opções da combobox linha
         function loadLinhas() {
-            fetch('/linhas')
+            return fetch('/linhas') // Adicionamos 'return' para controlo de fluxo
                 .then(response => response.json())
                 .then(data => {
                     let select = document.getElementById('linha');
-                    select.innerHTML = '<option value=""></option>'; // Default vazio
+                    if (!select) return;
+
+                    select.innerHTML = '<option value=""></option>';
+
+                    // Pegamos no valor vindo do Flask de forma segura para o JS
+                    const linhaSelecionada = "{{ filtros.linha|safe }}";
+
                     data.forEach(item => {
                         let opt = document.createElement('option');
                         opt.value = item.value;
                         opt.textContent = item.label;
-                        // manter seleção anterior
-                        if (item.value === "{{ filtros.linha }}") opt.selected = true;
+                        if (item.value == linhaSelecionada) opt.selected = true;
                         select.appendChild(opt);
+                    });
+                })
+                .catch(err => console.error("Erro ao carregar linhas:", err));
+        }
+
+        // Carregar opções da combobox gama_cor
+        function loadGamasCores() {
+            return fetch('/gamas_cores')
+                .then(response => response.json())
+                .then(data => {
+                    let select = document.getElementById('gama_cor');
+                    if (!select) return;
+
+                    select.innerHTML = '<option value=""></option>';
+
+                    // Pegamos no valor vindo do Flask de forma segura
+                    const gamaSelecionada = "{{ filtros.gama_cor|safe }}";
+
+                    data.forEach(item => {
+                        let opt = document.createElement('option');
+                        opt.value = item.value;
+                        opt.textContent = item.label;
+                        if (item.value == gamaSelecionada) opt.selected = true;
+                        select.appendChild(opt);
+                    });
+                })
+                .catch(err => console.error("Erro ao carregar gamas de cor:", err));
+        }
+
+        function loadTiposTrat() {
+            return fetch('/tipos_trat')
+                .then(response => response.json())
+                .then(data => {
+                    let select = document.getElementById('tipo');
+                    if (!select) return;
+
+                    select.innerHTML = '<option value=""></option>';
+                    const tipoSelecionado = "{{ filtros.tipo|safe }}";
+
+                    data.forEach(item => {
+                        let opt = document.createElement('option');
+                        opt.value = item.value;
+                        opt.textContent = item.label;
+                        if (item.value == tipoSelecionado) opt.selected = true;
+                        select.appendChild(opt);
+                    });
+                })
+                .catch(err => console.error("Erro ao carregar tipos:", err));
+        }
+
+        function loadSubtipos(tipoPai) {
+            const selectSubtipo = document.getElementById('subtipo');
+            if (!selectSubtipo) return;
+
+            // Se não houver tipo selecionado, podemos limpar os subtipos
+            return fetch(`/subtipos_trat?tipo=${encodeURIComponent(tipoPai || '')}`)
+                .then(response => response.json())
+                .then(data => {
+                    selectSubtipo.innerHTML = '<option value=""></option>';
+                    const subtipoGuardado = "{{ filtros.subtipo|safe }}";
+
+                    data.forEach(item => {
+                        let opt = document.createElement('option');
+                        opt.value = item.value;
+                        opt.textContent = item.label;
+                        if (item.value == subtipoGuardado) opt.selected = true;
+                        selectSubtipo.appendChild(opt);
                     });
                 });
         }
@@ -390,30 +495,97 @@
             // Limpar mensagem de "Sem resultados"
             const alert = document.querySelector('.alert');
             if (alert) alert.remove();
+
+            window.location.href = '/';
         }
 
+        function submeterDetalhe() {
+            const formDet = document.getElementById('formDetalhe');
+            if (!formDet) {
+                console.error("Erro: Formulário 'formDetalhe' não encontrado no HTML.");
+                return;
+            }
 
+            // Lista de todos os nomes dos campos de range e filtros
+            const camposParaCopiar = [
+                'data_ini', 'data_fin',
+                'cliente_ini', 'cliente_fin',
+                'trat_ini', 'trat_fin',
+                'requisicao', 'enc_ini', 'enc_fin',
+                'tipo', 'subtipo', 'gama_cor', 'linha'
+            ];
+
+            camposParaCopiar.forEach(nomeCampo => {
+                const campoOrigem = document.querySelector(`#filtrosForm [name="${nomeCampo}"]`);
+
+                if (campoOrigem) {
+                    // Verifica se já existe um input hidden com este nome no form de detalhe
+                    let hidden = formDet.querySelector(`input[name="${nomeCampo}"]`);
+                    if (!hidden) {
+                        hidden = document.createElement('input');
+                        hidden.type = 'hidden';
+                        hidden.name = nomeCampo;
+                        formDet.appendChild(hidden);
+                    }
+                    hidden.value = campoOrigem.value;
+                }
+            });
+
+            // Tratar a Ordenação 
+            const ordemAtiva = document.querySelector('input[name="ordem"]:checked');
+            if (ordemAtiva) {
+                let hiddenOrdem = formDet.querySelector('input[name="ordem"]');
+                if (!hiddenOrdem) {
+                    hiddenOrdem = document.createElement('input');
+                    hiddenOrdem.type = 'hidden';
+                    hiddenOrdem.name = 'ordem';
+                    formDet.appendChild(hiddenOrdem);
+                }
+                hiddenOrdem.value = ordemAtiva.value;
+            }
+
+            formDet.submit();
+        }
 
         // Chama no carregamento da página
         window.onload = function () {
-            loadLinhas(); // função de carregar a combobox
+            loadLinhas();
+            loadGamasCores();
 
-            const btn = document.getElementById('btnImprimir');
-
-            btn.addEventListener('click', function (e) {                
-                e.preventDefault();
-                e.stopPropagation();
-
-                const tbody = document.querySelector('table tbody');
-                const linhas = tbody ? Array.from(tbody.children).filter(tr => tr.offsetParent !== null) : [];
-
-                if (!tbody || linhas.length === 0 || tbody.innerText.includes("Sem resultados")) {
-                    alert("Não existem resultados para imprimir.");
-                    return;
-                }
-
-                document.getElementById('modalImpressao').style.display = 'block';
+            loadTiposTrat().then(() => {
+                const tipoAtual = document.getElementById('tipo').value;
+                loadSubtipos(tipoAtual);
             });
+
+            document.getElementById('tipo').addEventListener('change', function () {
+                loadSubtipos(this.value);
+            });
+
+            const btnImp = document.getElementById('btnImprimir');
+            if (btnImp) {
+                btnImp.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const tbody = document.querySelector('table tbody');
+                    const temDados = tbody && tbody.querySelectorAll('tr').length > 0 && !tbody.innerText.includes("Sem resultados");
+
+                    if (!temDados) {
+                        alert("Não existem resultados para imprimir.");
+                        return;
+                    }
+                    document.getElementById('modalImpressao').style.display = 'block';
+                });
+            }
+
+            // feedback visual ao botão de pesquisa
+            const form = document.getElementById('filtrosForm');
+            if (form) {
+                form.addEventListener('submit', function () {
+                    const btnPesq = document.getElementById('btnPesquisar');
+                    btnPesq.disabled = true;
+                    btnPesq.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+                    document.body.style.cursor = 'wait';
+                });
+            }
         };
 
         // FUNÇÃO PARA VISUALIZAR (CRYSTAL REPORTS)
@@ -437,11 +609,11 @@
                 if (elemento) {
                     const input = document.createElement('input');
                     input.type = 'hidden';
-                    input.name = id; // Nome que o Flask vai ler
+                    input.name = id;
                     input.value = elemento.value;
                     tempForm.appendChild(input);
                     // console.log(`Campo ${id} capturado: ${elemento.value}`);
-                // } else {
+                    // } else {
                     // console.warn(`Aviso: Elemento com ID '${id}' não encontrado no HTML.`);
                 }
             });

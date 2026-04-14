@@ -84,10 +84,13 @@ def criar_splash():
                     darkcolor=cor_destaque,
                     thickness=4) 
 
-    progress = ttk.Progressbar(main_frame, mode="indeterminate", 
+    progress = ttk.Progressbar(main_frame, orient="horizontal", mode="determinate", 
                                 length=180, style="Modern.Horizontal.TProgressbar")
     progress.pack()
-    progress.start(15)
+    
+    # Criamos uma referência global ou passamos o objeto para atualizar
+    splash.progress = progress
+    splash.status = status_label
 
     splash.update() 
     return splash
@@ -183,33 +186,45 @@ def iniciar_app():
     finally:
         sys.exit(0)
 
+# Função auxiliar para atualizar a barra suavemente
+def update_splash(splash, valor, texto):
+    splash.status.config(text=texto)
+    splash.progress['value'] = valor
+    splash.update()        
+
 # ----------------- MAIN -----------------
 root = tk.Tk()
 root.withdraw()  # Oculta a janela principal do tkinter
 
 splash = criar_splash()
 
+update_splash(splash, 20, "A verificar processos ativos...")
 if already_open():
     splash.destroy()
     messagebox.showinfo("Info", f"O {APP_EXE} já se encontra aberto.")
     sys.exit(0)
 
 # Se o exe não existir, download e extrai o zip
+update_splash(splash, 40, "A validar ficheiros locais...")
 if not os.path.exists(APP_EXE):
     splash.withdraw()
     download_e_extrair_zip_com_progresso()
     splash.deiconify()
 
 # Verifica atualizações se o exe existir
+update_splash(splash, 70, "A procurar atualizações no servidor...")
 versao_local = ler_versao_local()
 versao_remota = obter_versao_remota()
 
 if versao_remota and versao_remota != versao_local:
+    update_splash(splash, 85, "Nova versão detetada! A preparar download...")
     splash.withdraw()
     download_e_extrair_zip_com_progresso()
     guardar_versao_local(versao_remota)
     splash.deiconify()
 
+
+update_splash(splash, 100, "Tudo pronto! A iniciar aplicação...")
 # Inicia a aplicação principal
 splash.destroy()
 iniciar_app()
