@@ -6,10 +6,10 @@ import os
 import base64
 import webbrowser
 from threading import Timer
-
 from reportlab.lib import styles
 
 
+## BTX - RG - Listagem Encomendas
 
 app = Flask(__name__)
 # app = Flask(__name__, template_folder="templates")
@@ -145,6 +145,56 @@ def get_encomendas(filtros):
 
     except pyodbc.Error as e:
         return pd.DataFrame(), f"Erro ao consultar a base de dados: {e}"
+
+
+# função para evitar erros de carateres na impressão
+def limpar_str(texto):
+    if texto is None:
+        return ""
+    
+    t = str(texto)
+    
+    # Remove caracteres nulos invisíveis
+    t = t.replace('\x00', '').replace('\\u0000', '')
+    
+    # Tradução forçada dos erros comuns de encoding do SQL
+    traducoes = {
+        '\x90': 'É',  
+        '\x8f': 'Å',
+        '\x92': 'Æ',
+        '\x80': 'Ç',
+        '\x9a': 'Ö',
+        '\xad': '¡',
+        '‡': 'ç', 
+        '€': 'Ç',
+        ' ': 'á', 
+        '‚': 'é',
+        '¡': 'í',
+        '¢': 'ó',
+        '£': 'ú',
+        '†': 'å',
+        'Æ': 'ã',
+        'ä': 'õ',
+        '‹': 'ï',
+        '—': 'ù',
+        '\u20ac': 'Ç',
+        '\u2021': 'ç', 
+        '\u0192': 'ç',
+        'Ã§': 'ç',
+        'Ã‡': 'Ç',
+        'Ã¡': 'á',
+        'Ã©': 'é',
+        'Ã­': 'í',
+        'Ã³': 'ó',
+        'Ãº': 'ú',
+        'Ã£': 'ã',
+        'Ãµ': 'õ'
+    }
+    
+    for errado, correto in traducoes.items():
+        t = t.replace(errado, correto)
+        
+    return t
 
 
 ## Autenticação básica para a página de configurações
@@ -405,8 +455,10 @@ def imprimir_preview():
     else:
 
         for cliente in resultado:
-            cliente_nome = cliente["cliente"].get("cliente", "")
-            local = cliente["cliente"].get("local", "")
+            # cliente_nome = cliente["cliente"].get("cliente", "")
+            # local = cliente["cliente"].get("local", "")
+            cliente_nome = limpar_str(cliente["cliente"].get("cliente", ""))
+            local = limpar_str(cliente["cliente"].get("local", "")) 
 
             for enc in cliente["encomendas"]:
                 d = enc["dados"]
@@ -451,7 +503,7 @@ def imprimir_preview():
                 if descri:
                     data_encom.append([
                         "", "", "",  # espaço nas primeiras duas colunas
-                        Paragraph(f"<b><font size=7>{descri}</font></b>", styles["BodySmall"]),  # menor e bold
+                        Paragraph(f"<b><font size=7>{descri}</font></b>", styles["BodySmall"]),  # menor e bold                       
                     "", ""
                     ])
 
@@ -485,7 +537,9 @@ def imprimir_preview():
                         valor_area_formatado = "{:.4f}".format(val_float).rstrip('0').rstrip('.')
 
                         # design para não passar para cima de outros campos
-                        descricao_p = Paragraph(str(l.get("design","") or ""), styles["BodySmall"])
+                        design_limpa = limpar_str(l.get("design",""))
+                        # descricao_p = Paragraph(str(l.get("design","") or ""), styles["BodySmall"])
+                        descricao_p = Paragraph(design_limpa, styles["BodySmall"])
 
                         data.append([
                             str(l.get("ref","") or ""),
@@ -653,8 +707,8 @@ def detalhe():
         "detalhe.html",
         clientes_lista=clientes_lista,
         tratamentos_lista=tratamentos_lista,
-        clientes_sel=clientes_sel, # Passar as seleções reais para o template
-        trat_sel=trat_sel,         # Passar as seleções reais para o template
+        clientes_sel=clientes_sel, 
+        trat_sel=trat_sel,         
         rows=rows,
         columns=columns,
         error_msg=error_msg
@@ -794,14 +848,27 @@ from datetime import datetime
 import io
 from reportlab.pdfgen import canvas as pdf_canvas
 
+
+font_path = r'C:\Windows\Fonts\arial.ttf'
+font_bold_path = r'C:\Windows\Fonts\arialbd.ttf'
+
 try:
-    pdfmetrics.registerFont(TTFont('Arial', 'arial.ttf'))
-    pdfmetrics.registerFont(TTFont('Arial-Bold', 'arialbd.ttf'))
-    FONTE_BASE = 'Arial'
-    FONTE_BOLD = 'Arial-Bold'
-except:
+    if os.path.exists(font_path) and os.path.exists(font_bold_path):
+        pdfmetrics.registerFont(TTFont('Arial', font_path))
+        pdfmetrics.registerFont(TTFont('Arial-Bold', font_bold_path))
+        
+        FONTE_BASE = 'Arial'
+        FONTE_BOLD = 'Arial-Bold'
+        
+    else:
+        raise FileNotFoundError
+    
+except Exception as e:
     FONTE_BASE = 'Helvetica'
     FONTE_BOLD = 'Helvetica-Bold'
+
+
+
 
 # Canvas personalizado para numerar páginas "Página X de Y"
 class NumberedCanvas(pdf_canvas.Canvas):
@@ -879,8 +946,10 @@ def imprimir():
     elements = []
 
     for cliente in resultado:
-        cliente_nome = cliente["cliente"].get("cliente", "")
-        local = cliente["cliente"].get("local", "")
+        # cliente_nome = cliente["cliente"].get("cliente", "")
+        # local = cliente["cliente"].get("local", "")
+        cliente_nome = limpar_str(cliente["cliente"].get("cliente", ""))
+        local = limpar_str(cliente["cliente"].get("local", "")) 
 
         for enc in cliente["encomendas"]:
             d = enc["dados"]
@@ -925,7 +994,7 @@ def imprimir():
             if descri:
                 data_encom.append([
                     "", "", "",  # espaço nas primeiras duas colunas
-                    Paragraph(f"<b><font size=7>{descri}</font></b>", styles["BodySmall"]),  # menor e bold
+                    Paragraph(f"<b><font size=7>{descri}</font></b>", styles["BodySmall"]),  # menor e bold                    
                 "", ""
                 ])
 
@@ -958,8 +1027,10 @@ def imprimir():
 
                     valor_area_formatado = "{:.4f}".format(val_float).rstrip('0').rstrip('.')
 
+                    design_limpa = limpar_str(l.get("design", ""))
                     # para que a design não passe para cima da qtd
-                    descricao_p = Paragraph(str(l.get("design","") or ""), styles["BodySmall"])
+                    # descricao_p = Paragraph(str(l.get("design","") or ""), styles["BodySmall"])
+                    descricao_p = Paragraph(design_limpa, styles["BodySmall"])
 
                     data.append([
                         str(l.get("ref","") or ""),

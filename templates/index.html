@@ -672,10 +672,12 @@
                                 antigos.forEach(el => { if (el !== iframe) el.remove(); });
 
                                 const win = iframe.contentWindow;
+
                                 win.focus();
 
                                 // Executa a impressão
                                 win.print();
+
 
                             } catch (e) {
                                 console.error("Erro ao imprimir:", e);

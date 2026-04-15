@@ -41,7 +41,7 @@
             align-items: center;
             justify-content: space-between;
         }
-       
+
         .content-body {
             flex: 1;
             display: flex;
@@ -215,17 +215,47 @@
                     <table class="table table-striped table-bordered table-sm m-0">
                         <thead class="table-dark">
                             <tr>
-                                {% for col in columns %}
-                                <th>{{ col }}</th>
-                                {% endfor %}
+                                <th>Tratamento</th>
+                                <th>Descri</th>
+                                <th>Cliente</th>
+                                <th>Nome</th>
+                                <th>Encomenda</th>
+                                <th>Data</th>
+                                <th>Requisição</th>
+                                <th>Ref</th>
+                                <th>Desc</th>
+                                <th>Qtd</th>
+                                <th>Medida</th>
+                                <th>Metros</th>
+                                <th>m2</th>
+                                <th>Obs</th>
+                                <th>Micragem</th>
+                                <th>Gama_Cor</th>
+                                <th>Data_Entrega</th>
+                                <th>Conf</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for row in rows %}
                             <tr>
-                                {% for col in row %}
-                                <td>{{ col }}</td>
-                                {% endfor %}
+                                <td>{{ row[5] }}</td>
+                                <td>{{ row[16] }}</td>
+                                <td>{{ row[2] }}</td>
+                                <td>{{ row[3] }}</td>
+                                <td>{{ row[0] }}</td>
+                                <td>{{ row[1] }}</td>
+                                <td>{{ row[4] }}</td>
+                                <td>{{ row[9] }}</td>
+                                <td>{{ row[10] }}</td>
+                                <td>{{ row[11] }}</td>
+                                <td>{{ row[12] }}</td>
+                                <td>{{ row[13] }}</td>
+                                <td>{{ row[14] }}</td>
+                                <td>{{ row[15] }}</td>
+                                <td>{{ row[17] }}</td>
+                                <td>{{ row[8] }}</td>
+                                <td>{{ row[18] }}</td>
+                                <td>{{ row[19] }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -286,8 +316,12 @@
                 aviso.style.display = "none";
 
                 try {
-                    frame.contentWindow.focus();
-                    frame.contentWindow.print();
+                    const win = frame.contentWindow;
+
+                    win.focus();
+                    win.print();
+
+
                 } catch (e) {
                     console.error("Erro ao abrir diálogo de impressão:", e);
                     alert("O PDF foi gerado, mas o navegador bloqueou a abertura automática. Verifique o pop-up.");
