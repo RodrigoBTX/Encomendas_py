@@ -226,6 +226,55 @@
             background: #ccc;
             border-radius: 10px;
         }
+
+        /* Estilo para a sub-lista de clientes */
+        .sub-tree {
+            display: none;
+            /* Escondido por padrão */
+            background: #fdfdfd;
+            border-left: 3px solid #005a9e;
+            margin: 0;
+        }
+
+        .tree-item-sub {
+            padding: 8px 15px 8px 45px;
+            font-size: 12px;
+            color: #555;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f1f1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .tree-item-sub:hover {
+            background: #f0f7ff;
+            color: #005a9e;
+        }
+
+        .tree-item-sub.active {
+            background: #e1f0ff !important;
+            color: #005a9e !important;
+            font-weight: 600;
+        }
+
+        /* Ícone de seta à direita */
+        .chevron {
+            margin-left: auto;
+            font-size: 10px;
+            transition: transform 0.3s;
+        }
+
+        .tree-item.open .chevron {
+            transform: rotate(90deg);
+        }
+
+        /* Ajuste no item principal quando aberto */
+        .tree-item.open {
+            background: #f8f9fa;
+            border-bottom: none;
+        }
     </style>
 </head>
 
@@ -249,12 +298,18 @@
         </div>
 
         <div id="tree-view">
-            <div class="tree-item active" onclick="filtrar(this, '', '')">
-                <i class="bi bi-files"></i> Todos os Registos
+            <div class="tree-item active" onclick="filtrar(this, '', '', '')">
+                <i class="bi bi-files"></i>
+                <span>Todos os Registos</span>
             </div>
             {% for t in tratamentos %}
-            <div class="tree-item" onclick="filtrar(this, '{{ t.strip() }}', '{{ t.strip() }}')">
-                <i class="bi bi-file-earmark-pdf"></i> {{ t.strip() }}
+            <div class="tree-group">
+                <div class="tree-item" onclick="expandirTratamento(this, '{{ t }}')">
+                    <i class="bi bi-folder2"></i> {{ t }}
+                    <i class="bi bi-chevron-right ms-auto" style="font-size: 0.8rem;"></i>
+                </div>
+                <div class="sub-tree" style="display: none; padding-left: 20px; background: #f8f9fa;">
+                </div>
             </div>
             {% endfor %}
         </div>
@@ -297,6 +352,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
+
         // Prevenir fecho acidental do browser/janela
         window.onbeforeunload = function () {
             return "Deseja sair do visualizador?";
@@ -312,54 +368,130 @@
             window.location.href = '/';
         }
 
-        // Função de Pesquisa em Tempo Real
-        function filtrarLista() {
-            const input = document.getElementById('searchTratamento');
-            const filter = input.value.toLowerCase();
-            const items = document.getElementsByClassName('tree-item');
-
-            for (let i = 0; i < items.length; i++) {
-                const text = items[i].innerText || items[i].textContent;
-                if (text.toLowerCase().indexOf(filter) > -1) {
-                    items[i].style.display = "flex";
-                } else {
-                    items[i].style.display = "none";
-                }
-            }
-        }
-
-        // Função para filtrar o Iframe do PDF
-        // Captura o iframe e o overlay
+        // Captura o iframe e o overlay de loading
         const frame = document.getElementById('pdfFrame');
         const loading = document.getElementById('loading-overlay');
 
-        // Quando o iframe terminar de carregar, esconde o loading
         frame.onload = function () {
             loading.style.display = 'none';
         };
 
-        function filtrar(el, ini, fim) {
-            // Esconder a mensagem de boas-vindas se existir
+
+        async function expandirTratamento(el, nomeTratamento) {
+            if (!nomeTratamento) {
+                filtrar(el, '', '', '');
+                return;
+            }
+
+            const subTree = el.nextElementSibling;
+            const icon = el.querySelector('.bi-chevron-right');
+
+            // Se já estiver aberto, apenas fecha (Toggle)
+            if (subTree.style.display === "block") {
+                subTree.style.display = "none";
+                if (icon) icon.style.transform = "rotate(0deg)";
+                el.classList.remove('open');
+                return;
+            }
+
+            if (subTree.innerHTML.trim() === "") {
+                subTree.innerHTML = "<div class='p-2 text-muted' style='font-size: 11px;'><i class='bi bi-hourglass-split'></i> A carregar clientes...</div>";
+
+                try {
+                    const response = await fetch(`/get_clientes_tratamento?tratamento=${encodeURIComponent(nomeTratamento)}`);
+                    const clientes = await response.json();
+
+                    let html = `<div class="tree-item-sub p-2" onclick="filtrar(this, '${nomeTratamento}', '${nomeTratamento}', '')" style="cursor:pointer; font-size: 12px; border-bottom: 1px solid #eee;">
+                                <i class="bi bi-collection"></i> <b>[Todos deste tratamento]</b>
+                            </div>`;
+
+                    clientes.forEach(c => {
+                        html += `<div class="tree-item-sub p-2" onclick="filtrar(this, '${nomeTratamento}', '${nomeTratamento}', '${c}')" style="cursor:pointer; font-size: 12px; border-bottom: 1px solid #eee;">
+                                <i class="bi bi-person"></i> ${c}
+                            </div>`;
+                    });
+                    subTree.innerHTML = html;
+                } catch (error) {
+                    subTree.innerHTML = "<div class='p-2 text-danger' style='font-size: 11px;'>Erro ao carregar.</div>";
+                }
+            }
+
+            // Mostra o menu e roda o ícone
+            subTree.style.display = "block";
+            if (icon) icon.style.transform = "rotate(90deg)";
+            el.classList.add('open');
+
+            // Filtra o PDF para o tratamento geral ao abrir
+            filtrar(el, nomeTratamento, nomeTratamento, '');
+        }
+
+
+        function filtrar(el, ini, fim, cliente = '') {
             const msg = document.getElementById('placeholder-msg');
             if (msg) msg.style.display = 'none';
 
-            // Mostrar feedback visual no menu
-            document.querySelectorAll('.tree-item').forEach(i => i.classList.remove('active'));
+            document.querySelectorAll('.tree-item, .tree-item-sub').forEach(i => i.classList.remove('active'));
             el.classList.add('active');
 
-            // Mostrar o loading
-            document.getElementById('loading-overlay').style.display = 'flex';
+            loading.style.display = 'flex';
 
-            // Montar a URL
             let url = new URL('/imprimir_preview', window.location.origin);
+
             if (ini !== '') {
                 url.searchParams.set('trat_ini', ini);
                 url.searchParams.set('trat_fin', fim);
             }
-            url.searchParams.set('v', new Date().getTime());
 
+            if (cliente !== '') {
+                url.searchParams.set('cliente_especifico', cliente);
+            }
+
+            url.searchParams.set('v', new Date().getTime());
             frame.src = url.href;
+
+            // Impede que o clique num sub-item execute o clique do pai 
+            if (window.event) window.event.stopPropagation();
         }
+
+
+        function filtrarLista() {
+            const input = document.getElementById('searchTratamento');
+            const filter = input.value.toLowerCase();
+            const groups = document.querySelectorAll('.tree-group');
+
+            groups.forEach(group => {
+                const itemPai = group.querySelector('.tree-item');
+                const subMenu = group.querySelector('.sub-tree');
+                const textPai = itemPai.innerText.toLowerCase();
+                let hasVisibleChild = false;
+
+                if (subMenu) {
+                    const children = subMenu.querySelectorAll('.tree-item-sub');
+                    children.forEach(child => {
+                        if (child.innerText.toLowerCase().includes(filter)) {
+                            child.style.display = "flex";
+                            hasVisibleChild = true;
+                        } else {
+                            child.style.display = "none";
+                        }
+                    });
+                }
+
+                if (textPai.includes(filter) || hasVisibleChild) {
+                    group.style.display = "block";
+                    // Se estivermos a pesquisar e encontrarmos um filho, abrimos o menu automaticamente
+                    if (filter !== "" && hasVisibleChild) {
+                        subMenu.style.display = "block";
+                        const icon = itemPai.querySelector('.bi-chevron-right');
+                        if (icon) icon.style.transform = "rotate(90deg)";
+                    }
+                } else {
+                    group.style.display = "none";
+                }
+            });
+        }
+
+
     </script>
 </body>
 
