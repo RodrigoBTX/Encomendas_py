@@ -1,13 +1,13 @@
-from datetime import date
+from datetime import datetime, date
 import configparser
 import os
 import base64
 import json
 import threading
-import webbrowser
-from threading import Timer
 import webview
-from reportlab.lib import styles
+import io
+from functools import lru_cache
+
 from flask import (
     Flask,
     render_template,
@@ -20,6 +20,22 @@ from flask import (
 )
 import pyodbc
 import pandas as pd
+
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle,
+    KeepTogether,
+    HRFlowable,
+)
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfgen import canvas as pdf_canvas
 
 
 ## BTX - RG - Listagem Encomendas
@@ -325,6 +341,7 @@ def clientes():
 
 
 @app.route("/linhas")
+@lru_cache(maxsize=1)
 def linhas():
     # conn = pyodbc.connect(conn_str)
     conn = criar_conexao()
@@ -338,6 +355,7 @@ def linhas():
 
 
 @app.route("/gamas_cores")
+@lru_cache(maxsize=1)
 def gamas_cores():
     conn = criar_conexao()
     cursor = conn.cursor()
@@ -350,6 +368,7 @@ def gamas_cores():
 
 
 @app.route("/tipos_trat")
+@lru_cache(maxsize=1)
 def tipos_trat():
     conn = criar_conexao()
     cursor = conn.cursor()
@@ -362,6 +381,7 @@ def tipos_trat():
 
 
 @app.route("/subtipos_trat")
+@lru_cache(maxsize=1)
 def subtipos_trat():
     tipo_selecionado = request.args.get("tipo", "")
 
@@ -499,6 +519,10 @@ def imprimir_preview():
     if t_ini:
         filtros["trat_ini"] = t_ini.strip()
         filtros["trat_fin"] = t_ini.strip()
+
+    if cliente_clicado:
+        filtros["cliente_ini"] = cliente_clicado.strip()
+        filtros["cliente_fin"] = cliente_clicado.strip()
 
     # Executa a lógica pesada dos SPs de dados
     resultado = executar_sps(filtros)
@@ -1017,25 +1041,6 @@ def executar_sps(filtros):
 
 # impressao em PDF
 
-from flask import make_response, request
-from reportlab.platypus import (
-    SimpleDocTemplate,
-    Paragraph,
-    Spacer,
-    Table,
-    TableStyle,
-    KeepTogether,
-    HRFlowable,
-)
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from datetime import datetime
-import io
-from reportlab.pdfgen import canvas as pdf_canvas
-
 
 font_path = r"C:\Windows\Fonts\arial.ttf"
 font_bold_path = r"C:\Windows\Fonts\arialbd.ttf"
@@ -1463,7 +1468,7 @@ if __name__ == "__main__":
     port = 5000
 
     def start_flask():
-        app.run(debug=False, port=port, use_reloader=False)
+        app.run(debug=False, port=port, use_reloader=False, threaded=True)
 
     # Corre Flask em segundo plano
     threading.Thread(target=start_flask, daemon=True).start()

@@ -1,12 +1,13 @@
-import psutil
+import time
 import sys
 import os
 import subprocess
-import requests
 import zipfile
 import io
 import tkinter as tk
 from tkinter import messagebox, ttk
+import requests
+import psutil
 from PIL import Image, ImageTk
 
 # ----------------- CONFIGURAÇÃO -----------------
@@ -232,27 +233,42 @@ if already_open():
     messagebox.showinfo("Info", f"O {APP_EXE} já se encontra aberto.")
     sys.exit(0)
 
-# Se o exe não existir, download e extrai o zip
+
 update_splash(splash, 40, "A validar ficheiros locais...")
 if not os.path.exists(APP_EXE):
     splash.withdraw()
     download_e_extrair_zip_com_progresso()
     splash.deiconify()
 
-# Verifica atualizações se o exe existir
+
 update_splash(splash, 70, "A procurar atualizações no servidor...")
 versao_local = ler_versao_local()
 versao_remota = obter_versao_remota()
 
 if versao_remota and versao_remota != versao_local:
-    update_splash(splash, 85, "Nova versão detetada! A preparar download...")
     splash.withdraw()
-    download_e_extrair_zip_com_progresso()
-    guardar_versao_local(versao_remota)
+    pergunta = messagebox.askyesno(
+        "Atualização Disponível",
+        f"Nova versão disponível: {versao_remota}\nVersão atual: {versao_local}\n\nDeseja atualizar agora?",
+    )
+
+    if pergunta:
+        splash.deiconify()
+        update_splash(splash, 80, "A descarregar nova versão...")
+        try:
+            download_e_extrair_zip_com_progresso()
+            guardar_versao_local(versao_remota)
+            update_splash(splash, 95, "Atualização concluída!")
+            time.sleep(1)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Falha na atualização: {e}")
+
     splash.deiconify()
 
 
 update_splash(splash, 100, "Tudo pronto! A iniciar aplicação...")
-# Inicia a aplicação principal
+splash.update()
+time.sleep(0.5)
+
 splash.destroy()
 iniciar_app()

@@ -38,10 +38,50 @@
         #tratList {
             min-height: 200px;
         }
+
+        /* Overlay de carregamento global */
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: none;
+            /* Escondido por padrão */
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .spinner-custom {
+            border: 6px solid #f3f3f3;
+            border-top: 6px solid #0d6efd;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
     </style>
 </head>
 
 <body class="bg-light">
+
+    <div id="loading-overlay">
+        <div class="spinner-custom"></div>
+        <p style="margin-top: 15px; font-weight: bold; color: #0d6efd;">A sincronizar dados, aguarde...</p>
+    </div>
 
     <div class="container-fluid mt-3 position-relative">
         <h2 class="d-inline">Lacoviana</h2>
@@ -306,13 +346,56 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let currentInputId = "";
+        let filtrosJaCarregados = false;
 
-        // Tratamentos
+        // --- GESTÃO DE UI (LOADING) ---
+        function toggleSincronismo(estaCarregando) {
+            const overlay = document.getElementById('loading-overlay');
+            const btnPreview = document.getElementById('btnImprimir');
+
+            if (estaCarregando) {
+                if (overlay) overlay.style.display = 'flex';
+                if (btnPreview) btnPreview.classList.add('disabled');
+                document.body.style.cursor = 'wait';
+
+                setTimeout(() => {
+                    if (overlay && overlay.style.display === 'flex') {
+                        toggleSincronismo(false);
+                    }
+                }, 20000);
+            } else {
+                if (overlay) overlay.style.display = 'none';
+                if (btnPreview) btnPreview.classList.remove('disabled');
+                document.body.style.cursor = 'default';
+            }
+        }
+
+        // --- CARREGAMENTO DE DADOS (FILTROS) ---
+        async function carregarFiltrosIniciais() {
+            if (filtrosJaCarregados) return;
+
+            try {
+                await Promise.all([
+                    loadLinhas(),
+                    loadGamasCores(),
+                    loadTiposTrat()
+                ]);
+
+                const tipoAtual = document.getElementById('tipo').value;
+                if (tipoAtual) await loadSubtipos(tipoAtual);
+
+                filtrosJaCarregados = true;
+            } catch (e) {
+                console.error("Erro ao carregar filtros iniciais:", e);
+            }
+        }
+
+        // --- TRATAMENTOS E CLIENTES (MODALS) ---
         function loadTratamentos(inputId) {
             const list = document.getElementById('tratList');
             const searchInput = document.getElementById('searchTrat');
-            searchInput.value = "";  // limpa a pesquisa
-            list.innerHTML = '';     // limpa a lista
+            searchInput.value = "";
+            list.innerHTML = '';
 
             fetch('/tratamentos')
                 .then(response => response.json())
@@ -338,13 +421,11 @@
             });
         }
 
-
-        // Clientes
         function loadClientes(inputId) {
             const list = document.getElementById('clienteList');
             const searchInput = document.getElementById('searchCliente');
-            searchInput.value = "";  // limpa a pesquisa
-            list.innerHTML = '';     // limpa a lista
+            searchInput.value = "";
+            list.innerHTML = '';
 
             fetch('/clientes')
                 .then(response => response.json())
@@ -370,19 +451,15 @@
             });
         }
 
-        // Carregar opções da combobox linha
+        // --- LINHAS, GAMAS, TIPOS ---
         function loadLinhas() {
-            return fetch('/linhas') // Adicionamos 'return' para controlo de fluxo
+            return fetch('/linhas')
                 .then(response => response.json())
                 .then(data => {
                     let select = document.getElementById('linha');
                     if (!select) return;
-
                     select.innerHTML = '<option value=""></option>';
-
-                    // Pegamos no valor vindo do Flask de forma segura para o JS
                     const linhaSelecionada = "{{ filtros.linha|safe }}";
-
                     data.forEach(item => {
                         let opt = document.createElement('option');
                         opt.value = item.value;
@@ -390,23 +467,17 @@
                         if (item.value == linhaSelecionada) opt.selected = true;
                         select.appendChild(opt);
                     });
-                })
-                .catch(err => console.error("Erro ao carregar linhas:", err));
+                });
         }
 
-        // Carregar opções da combobox gama_cor
         function loadGamasCores() {
             return fetch('/gamas_cores')
                 .then(response => response.json())
                 .then(data => {
                     let select = document.getElementById('gama_cor');
                     if (!select) return;
-
                     select.innerHTML = '<option value=""></option>';
-
-                    // Pegamos no valor vindo do Flask de forma segura
                     const gamaSelecionada = "{{ filtros.gama_cor|safe }}";
-
                     data.forEach(item => {
                         let opt = document.createElement('option');
                         opt.value = item.value;
@@ -414,8 +485,7 @@
                         if (item.value == gamaSelecionada) opt.selected = true;
                         select.appendChild(opt);
                     });
-                })
-                .catch(err => console.error("Erro ao carregar gamas de cor:", err));
+                });
         }
 
         function loadTiposTrat() {
@@ -424,10 +494,8 @@
                 .then(data => {
                     let select = document.getElementById('tipo');
                     if (!select) return;
-
                     select.innerHTML = '<option value=""></option>';
                     const tipoSelecionado = "{{ filtros.tipo|safe }}";
-
                     data.forEach(item => {
                         let opt = document.createElement('option');
                         opt.value = item.value;
@@ -435,21 +503,17 @@
                         if (item.value == tipoSelecionado) opt.selected = true;
                         select.appendChild(opt);
                     });
-                })
-                .catch(err => console.error("Erro ao carregar tipos:", err));
+                });
         }
 
         function loadSubtipos(tipoPai) {
             const selectSubtipo = document.getElementById('subtipo');
             if (!selectSubtipo) return;
-
-            // Se não houver tipo selecionado, podemos limpar os subtipos
             return fetch(`/subtipos_trat?tipo=${encodeURIComponent(tipoPai || '')}`)
                 .then(response => response.json())
                 .then(data => {
                     selectSubtipo.innerHTML = '<option value=""></option>';
                     const subtipoGuardado = "{{ filtros.subtipo|safe }}";
-
                     data.forEach(item => {
                         let opt = document.createElement('option');
                         opt.value = item.value;
@@ -460,66 +524,25 @@
                 });
         }
 
+        // --- FORMULÁRIO E PESQUISA ---
         function limparFiltros() {
-            const hoje = new Date();
-            const anoAtual = hoje.getFullYear();
-            const dataIniDefault = `${anoAtual}-01-01`;
-            const dataFinDefault = hoje.toISOString().slice(0, 10);
-
-            // Definir valores default
-            document.querySelector('input[name="data_ini"]').value = dataIniDefault;
-            document.querySelector('input[name="data_fin"]').value = dataFinDefault;
-            document.querySelector('input[name="enc_ini"]').value = 0;
-            document.querySelector('input[name="enc_fin"]').value = 99999999;
-
-            // Restaurar cliente e tratamento com defaults vindos do Flask
-            document.querySelector('input[name="cliente_ini"]').value = "";
-            document.querySelector('input[name="cliente_fin"]').value = "";
-            document.querySelector('input[name="trat_ini"]').value = "";
-            document.querySelector('input[name="trat_fin"]').value = "";
-
-            // Reset selects (Linha)
-            document.querySelectorAll('select').forEach(select => {
-                select.selectedIndex = 0;
-            });
-
-            // Reset radio buttons (ordenar)
-            document.querySelectorAll('input[type="radio"]').forEach(radio => {
-                radio.checked = false;
-            });
-
-            // Limpar tabela de resultados
-            const tbody = document.querySelector('table tbody');
-            if (tbody) tbody.innerHTML = '';
-
-            // Limpar mensagem de "Sem resultados"
-            const alert = document.querySelector('.alert');
-            if (alert) alert.remove();
-
+            filtrosJaCarregados = false;
             window.location.href = '/';
         }
 
         function submeterDetalhe() {
             const formDet = document.getElementById('formDetalhe');
-            if (!formDet) {
-                console.error("Erro: Formulário 'formDetalhe' não encontrado no HTML.");
-                return;
-            }
+            if (!formDet) return;
 
-            // Lista de todos os nomes dos campos de range e filtros
             const camposParaCopiar = [
-                'data_ini', 'data_fin',
-                'cliente_ini', 'cliente_fin',
-                'trat_ini', 'trat_fin',
-                'requisicao', 'enc_ini', 'enc_fin',
+                'data_ini', 'data_fin', 'cliente_ini', 'cliente_fin',
+                'trat_ini', 'trat_fin', 'requisicao', 'enc_ini', 'enc_fin',
                 'tipo', 'subtipo', 'gama_cor', 'linha'
             ];
 
             camposParaCopiar.forEach(nomeCampo => {
                 const campoOrigem = document.querySelector(`#filtrosForm [name="${nomeCampo}"]`);
-
                 if (campoOrigem) {
-                    // Verifica se já existe um input hidden com este nome no form de detalhe
                     let hidden = formDet.querySelector(`input[name="${nomeCampo}"]`);
                     if (!hidden) {
                         hidden = document.createElement('input');
@@ -531,7 +554,6 @@
                 }
             });
 
-            // Tratar a Ordenação 
             const ordemAtiva = document.querySelector('input[name="ordem"]:checked');
             if (ordemAtiva) {
                 let hiddenOrdem = formDet.querySelector('input[name="ordem"]');
@@ -543,23 +565,42 @@
                 }
                 hiddenOrdem.value = ordemAtiva.value;
             }
-
             formDet.submit();
         }
 
-        // Chama no carregamento da página
-        window.onload = function () {
-            loadLinhas();
-            loadGamasCores();
+        // para que quando a linha seja CRAV , altera logo os meus tratamentos, senão carrega uma lista demasiado grande 
+        function verificarRegraCrav() {
+            const linhaSelect = document.getElementById('linha');
+            if (!linhaSelect) return;
 
-            loadTiposTrat().then(() => {
-                const tipoAtual = document.getElementById('tipo').value;
-                loadSubtipos(tipoAtual);
+            // O .trim() remove os espaços invisíveis que vêm do SQL
+            const valorSelecionado = linhaSelect.value.trim();
+
+            if (valorSelecionado === 'CRAV') {
+                const campoIni = document.querySelector('input[name="trat_ini"]');
+                const campoFin = document.querySelector('input[name="trat_fin"]');
+
+                if (campoIni) campoIni.value = 'Crava';
+                if (campoFin) campoFin.value = 'Crava';
+
+                // console.log("Regra CRAV aplicada com sucesso (espaços removidos)!");
+            }
+        }
+
+
+        window.onload = function () {
+            toggleSincronismo(false);
+
+            carregarFiltrosIniciais().then(() => {
+                verificarRegraCrav();
             });
+
+            document.getElementById('linha').addEventListener('change', verificarRegraCrav);
 
             document.getElementById('tipo').addEventListener('change', function () {
                 loadSubtipos(this.value);
             });
+
 
             const btnImp = document.getElementById('btnImprimir');
             if (btnImp) {
@@ -576,27 +617,28 @@
                 });
             }
 
-            // feedback visual ao botão de pesquisa
             const form = document.getElementById('filtrosForm');
             if (form) {
                 form.addEventListener('submit', function () {
+                    verificarRegraCrav();
+
                     const btnPesq = document.getElementById('btnPesquisar');
-                    btnPesq.disabled = true;
-                    btnPesq.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+                    if (btnPesq) {
+                        btnPesq.disabled = true;
+                        btnPesq.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+                    }
+                    document.getElementById('loading-overlay').style.display = 'flex';
                     document.body.style.cursor = 'wait';
                 });
             }
         };
 
-        // FUNÇÃO PARA VISUALIZAR (CRYSTAL REPORTS)
+        // --- FUNÇÕES DE IMPRESSÃO ---
         function visualizarCrystal() {
-            // console.log("A Iniciar visualização Crystal...");
             document.getElementById('modalImpressao').style.display = 'none';
-
             const tempForm = document.createElement('form');
             tempForm.method = 'POST';
             tempForm.action = '/visualizar_relatorio';
-            // tempForm.target = '_blank';
 
             const idsDosCampos = [
                 'data_ini', 'data_fin', 'cliente_ini', 'cliente_fin',
@@ -612,9 +654,6 @@
                     input.name = id;
                     input.value = elemento.value;
                     tempForm.appendChild(input);
-                    // console.log(`Campo ${id} capturado: ${elemento.value}`);
-                    // } else {
-                    // console.warn(`Aviso: Elemento com ID '${id}' não encontrado no HTML.`);
                 }
             });
 
@@ -623,10 +662,8 @@
             document.body.removeChild(tempForm);
         }
 
-        // FUNÇÃO DE IMPRESSÃO DIRETA 
         function gerarImpressaoDireta() {
             document.getElementById('modalImpressao').style.display = 'none';
-
             const loading = document.getElementById('loading');
             const form = document.getElementById('filtrosForm');
 
@@ -634,7 +671,6 @@
             document.body.style.cursor = 'wait';
 
             const formData = new FormData(form);
-
             fetch('/imprimir', { method: 'POST', body: formData })
                 .then(response => {
                     if (!response.ok) throw new Error("Erro no servidor");
@@ -645,20 +681,11 @@
                     document.body.style.cursor = 'default';
 
                     const url = URL.createObjectURL(blob);
-
-                    // Criamos o iframe mas SEM display:none 
                     const iframe = document.createElement('iframe');
-
-                    // Estilo "invisível" mas presente para o motor da App
                     Object.assign(iframe.style, {
-                        position: 'fixed',
-                        right: '0',
-                        bottom: '0',
-                        width: '1px',
-                        height: '1px',
-                        border: 'none',
-                        opacity: '0.01',
-                        zIndex: '-1'
+                        position: 'fixed', right: '0', bottom: '0',
+                        width: '1px', height: '1px', border: 'none',
+                        opacity: '0.01', zIndex: '-1'
                     });
 
                     iframe.src = url;
@@ -667,20 +694,12 @@
                     iframe.onload = function () {
                         setTimeout(() => {
                             try {
-                                // Remove qualquer iframe de impressão anterior para não acumular "lixo" no HTML
                                 const antigos = document.querySelectorAll('.print-iframe');
                                 antigos.forEach(el => { if (el !== iframe) el.remove(); });
-
                                 const win = iframe.contentWindow;
-
                                 win.focus();
-
-                                // Executa a impressão
                                 win.print();
-
-
                             } catch (e) {
-                                console.error("Erro ao imprimir:", e);
                                 window.open(url, '_blank');
                             }
                         }, 800);
@@ -692,7 +711,6 @@
                     alert("Erro: " + err.message);
                 });
         }
-
     </script>
 </body>
 
