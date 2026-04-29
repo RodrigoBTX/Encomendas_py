@@ -4,6 +4,7 @@ import os
 import subprocess
 import zipfile
 import io
+import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 import requests
@@ -24,14 +25,13 @@ LOGO_PATH = "logo.ico"
 
 
 def resource_path(relative_path):
-
     if hasattr(sys, "_MEIPASS"):
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.join(os.path.abspath("."), relative_path)
 
 
-def criar_splash():
-    splash = tk.Toplevel()
+def criar_splash(root):
+    splash = tk.Toplevel(root)
     splash.overrideredirect(True)
     splash.attributes("-topmost", True)
 
@@ -49,7 +49,6 @@ def criar_splash():
 
     splash.configure(bg=cor_fundo)
 
-    # Container para margens internas
     main_frame = tk.Frame(splash, bg=cor_fundo, padx=20, pady=20)
     main_frame.pack(expand=True, fill="both")
 
@@ -60,14 +59,12 @@ def criar_splash():
             img = img.convert("RGBA")
             img.thumbnail((80, 80), Image.LANCZOS)
             photo = ImageTk.PhotoImage(img)
-
             label_img = tk.Label(main_frame, image=photo, bg=cor_fundo)
             label_img.image = photo
             label_img.pack(pady=(10, 15))
     except Exception:
         pass
 
-    # Texto Principal
     tk.Label(
         main_frame,
         text="Listagem de Encomendas",
@@ -76,7 +73,6 @@ def criar_splash():
         fg=cor_texto_principal,
     ).pack()
 
-    # Texto de Status
     status_label = tk.Label(
         main_frame,
         text="A verificar atualizações...",
@@ -107,10 +103,8 @@ def criar_splash():
     )
     progress.pack()
 
-    # Criamos uma referência global ou passamos o objeto para atualizar
     splash.progress = progress
     splash.status = status_label
-
     splash.update()
     return splash
 
@@ -144,131 +138,175 @@ def obter_versao_remota():
         r = requests.get(URL_VERSAO, timeout=10)
         r.raise_for_status()
         return r.text.strip()
-    except Exception as e:
-        messagebox.showerror("Erro", f"Não foi possível verificar atualizações:\n{e}")
+    except Exception:
         return None
 
 
-def download_e_extrair_zip_com_progresso():
-    """Download do zip e mostra uma janela com barra de progresso"""
-    try:
-        # Cria a janela de progresso
-        win = tk.Toplevel()
-        win.title("A Atualizar...")
-        win.geometry("400x100")
-        win.resizable(False, False)
-        tk.Label(win, text="Download dos arquivos, aguarde...").pack(pady=10)
-        progress = ttk.Progressbar(
-            win, orient="horizontal", length=350, mode="determinate"
-        )
-        progress.pack(pady=10)
-        win.update()
-
-        # Faz o download em stream
-        r = requests.get(URL_RELEASE, stream=True, timeout=30)
-        r.raise_for_status()
-        total_length = r.headers.get("content-length")
-
-        if total_length is None:
-            # Sem tamanho conhecido
-            data = r.content
-            progress["value"] = 100
-        else:
-            total_length = int(total_length)
-            data = b""
-            chunk_size = 1024 * 1024  # 1 MB por vez
-            downloaded = 0
-            for chunk in r.iter_content(chunk_size=chunk_size):
-                if chunk:
-                    data += chunk
-                    downloaded += len(chunk)
-                    progress["value"] = (downloaded / total_length) * 100
-                    win.update()
-
-        # Extrai zip
-        z = zipfile.ZipFile(io.BytesIO(data))
-        z.extractall(".")
-        win.destroy()
-        messagebox.showinfo("Atualização", "Download dos arquivos com sucesso!")
-
-    except Exception as e:
-        messagebox.showerror("Erro", f"Falha ao fazer download dos arquivos:\n{e}")
-        sys.exit(1)
-
-
-def iniciar_app():
-    if getattr(sys, "frozen", False):
-        exe_path = os.path.join(os.path.dirname(sys.executable), APP_EXE)
-    else:
-        exe_path = APP_EXE
-
-    if not os.path.exists(exe_path):
-        messagebox.showerror("Erro", f"Arquivo {APP_EXE} não encontrado!")
-        sys.exit(1)
-
-    try:
-        subprocess.Popen([exe_path])
-    except Exception as e:
-        messagebox.showerror("Erro", f"Não foi possível iniciar a app:\n{e}")
-    finally:
-        sys.exit(0)
-
-
-# Função auxiliar para atualizar a barra suavemente
 def update_splash(splash, valor, texto):
     splash.status.config(text=texto)
     splash.progress["value"] = valor
     splash.update()
 
 
-# ----------------- MAIN -----------------
-root = tk.Tk()
-root.withdraw()  # Oculta a janela principal do tkinter
+def download_e_extrair(splash, callback_sucesso, callback_erro):
+    """Corre numa thread separada. Atualiza o splash via root.after()"""
 
-splash = criar_splash()
-
-update_splash(splash, 20, "A verificar processos ativos...")
-if already_open():
-    splash.destroy()
-    messagebox.showinfo("Info", f"O {APP_EXE} já se encontra aberto.")
-    sys.exit(0)
-
-
-update_splash(splash, 40, "A validar ficheiros locais...")
-if not os.path.exists(APP_EXE):
-    splash.withdraw()
-    download_e_extrair_zip_com_progresso()
-    splash.deiconify()
-
-
-update_splash(splash, 70, "A procurar atualizações no servidor...")
-versao_local = ler_versao_local()
-versao_remota = obter_versao_remota()
-
-if versao_remota and versao_remota != versao_local:
-    splash.withdraw()
-    pergunta = messagebox.askyesno(
-        "Atualização Disponível",
-        f"Nova versão disponível: {versao_remota}\nVersão atual: {versao_local}\n\nDeseja atualizar agora?",
-    )
-
-    if pergunta:
-        splash.deiconify()
-        update_splash(splash, 80, "A descarregar nova versão...")
+    def run():
         try:
-            download_e_extrair_zip_com_progresso()
-            guardar_versao_local(versao_remota)
-            update_splash(splash, 95, "Atualização concluída!")
-            time.sleep(1)
+            r = requests.get(URL_RELEASE, stream=True, timeout=60)
+            r.raise_for_status()
+            total_length = r.headers.get("content-length")
+
+            data = b""
+            if total_length is None:
+                splash.after(0, lambda: update_splash(splash, 60, "A descarregar..."))
+                data = r.content
+            else:
+                total_length = int(total_length)
+                downloaded = 0
+                chunk_size = 1024 * 1024  # 1 MB por vez
+
+                for chunk in r.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        data += chunk
+                        downloaded += len(chunk)
+                        # Mapeia 0%→100% do download para 50%→90% da barra
+                        barra_pct = 50 + int((downloaded / total_length) * 40)
+                        download_pct = int((downloaded / total_length) * 100)
+                        splash.after(
+                            0,
+                            lambda b=barra_pct, d=download_pct: update_splash(
+                                splash, b, f"A descarregar... {d}%"
+                            ),
+                        )
+
+            splash.after(0, lambda: update_splash(splash, 92, "A extrair ficheiros..."))
+            z = zipfile.ZipFile(io.BytesIO(data))
+            z.extractall(".")
+            splash.after(0, callback_sucesso)
+
         except Exception as e:
-            messagebox.showerror("Erro", f"Falha na atualização: {e}")
+            splash.after(0, lambda err=e: callback_erro(err))
 
-    splash.deiconify()
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
 
 
-update_splash(splash, 100, "Tudo pronto! A iniciar aplicação...")
-splash.update()
-time.sleep(0.5)
+# ----------------- MAIN -----------------
+def main():
+    root = tk.Tk()
+    root.withdraw()
 
-splash.destroy()
-iniciar_app()
+    splash = criar_splash(root)
+
+    def continuar_apos_download(versao_para_guardar=None):
+        if versao_para_guardar:
+            guardar_versao_local(versao_para_guardar)
+        update_splash(splash, 100, "Tudo pronto! A iniciar aplicação...")
+        root.after(500, arrancar)
+
+    def arrancar():
+        iniciar_app()
+
+    def erro_download(e):
+        splash.destroy()
+        messagebox.showerror("Erro", f"Falha ao descarregar ficheiros:\n{e}")
+        root.destroy()
+        sys.exit(1)
+
+    def passo1_verificar_processo():
+        update_splash(splash, 20, "A verificar processos ativos...")
+        root.after(50, passo2_verificar_exe)
+
+    def passo2_verificar_exe():
+        update_splash(splash, 40, "A validar ficheiros locais...")
+        root.after(50, passo3_verificar_ficheiro)
+
+    def passo3_verificar_ficheiro():
+        if not os.path.exists(APP_EXE):
+            update_splash(splash, 50, "A descarregar aplicação pela primeira vez...")
+
+            def apos_primeiro_download():
+                versao_remota = obter_versao_remota()
+                if versao_remota:
+                    guardar_versao_local(versao_remota)
+                continuar_apos_download()
+
+            download_e_extrair(
+                splash,
+                callback_sucesso=apos_primeiro_download,
+                callback_erro=erro_download,
+            )
+        else:
+            passo4_verificar_versao()
+
+    def passo4_verificar_versao():
+        update_splash(splash, 70, "A procurar atualizações no servidor...")
+        root.after(50, passo5_comparar_versoes)
+
+    def passo5_comparar_versoes():
+        versao_local = ler_versao_local()
+        versao_remota = obter_versao_remota()
+
+        if versao_remota is None:
+            messagebox.showwarning(
+                "Aviso",
+                "Não foi possível verificar atualizações. A iniciar assim mesmo...",
+            )
+            continuar_apos_download()
+            return
+
+        if versao_remota != versao_local:
+            splash.attributes("-topmost", False)
+            pergunta = messagebox.askyesno(
+                "Atualização Disponível",
+                f"Nova versão disponível: {versao_remota}\nVersão atual: {versao_local}\n\nDeseja atualizar agora?",
+            )
+            splash.attributes("-topmost", True)
+
+            if pergunta:
+                update_splash(splash, 80, "A descarregar nova versão...")
+                download_e_extrair(
+                    splash,
+                    callback_sucesso=lambda: continuar_apos_download(versao_remota),
+                    callback_erro=erro_download,
+                )
+                return
+
+        continuar_apos_download()
+
+    def iniciar_app():
+        if getattr(sys, "frozen", False):
+            exe_path = os.path.join(os.path.dirname(sys.executable), APP_EXE)
+        else:
+            exe_path = APP_EXE
+
+        if not os.path.exists(exe_path):
+            messagebox.showerror("Erro", f"Arquivo {APP_EXE} não encontrado!")
+            sys.exit(1)
+
+        try:
+            update_splash(splash, 100, "A aguardar arranque da aplicação...")
+            splash.update()
+            processo = subprocess.Popen([exe_path])
+
+            # Espera até 15 segundos que o processo arranque
+            for _ in range(15):
+                if processo.poll() is not None:
+                    messagebox.showerror("Erro", f"{APP_EXE} terminou inesperadamente.")
+                    break
+                time.sleep(1)
+                splash.update()
+
+        except Exception as e:
+            messagebox.showerror("Erro", f"Não foi possível iniciar a app:\n{e}")
+        finally:
+            splash.destroy()
+            root.destroy()
+            sys.exit(0)
+
+    root.after(100, passo1_verificar_processo)
+    root.mainloop()
+
+
+main()

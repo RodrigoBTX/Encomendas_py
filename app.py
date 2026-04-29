@@ -432,7 +432,7 @@ def visualizar_relatorio():
 
     # Se a sessão estiver vazia (acesso direto via GET), define datas padrão
     if not filtros.get("data_ini"):
-        from datetime import date
+        # from datetime import date
 
         filtros["data_ini"] = f"{date.today().year}-01-01"
         filtros["data_fin"] = date.today().isoformat()
@@ -444,12 +444,22 @@ def visualizar_relatorio():
         cursor = conn.cursor()
         # Filtramos tratamentos nulos ou vazios para a lista vir limpa
         cursor.execute(
-            """
-            SELECT DISTINCT tratamento 
-            FROM u_tratamentos (NOLOCK) 
-            WHERE tratamento IS NOT NULL AND tratamento <> '' 
-            ORDER BY tratamento ASC
-        """
+            "EXEC sp_listar_tratamentos @data_ini=?, @data_fin=?, @cliente_ini=?, @cliente_fin=?, @trat_ini=?, @trat_fin=?, @req=?, @enc_ini=?, @enc_fin=?, @tipo=?, @subtipo=?, @gamacor=?, @linha=?",
+            (
+                filtros.get("data_ini"),
+                filtros.get("data_fin"),
+                filtros.get("cliente_ini") or "",
+                filtros.get("cliente_fin") or "zzzzzz",
+                filtros.get("trat_ini") or "",
+                filtros.get("trat_fin") or "zzzzzz",
+                filtros.get("requisicao") or "",
+                filtros.get("enc_ini") or 0,
+                filtros.get("enc_fin") or 999999999,
+                filtros.get("tipo") or "",
+                filtros.get("subtipo") or "",
+                filtros.get("gama_cor") or "",
+                filtros.get("linha") or "",
+            ),
         )
 
         # Aplicamos o strip() para garantir que não há espaços extras nos botões da lateral
@@ -575,45 +585,83 @@ def imprimir_preview():
             )
         )
     else:
+        # Controlo de totais por tratamento
+        tratamento_atual = None
+        total_qtt_trat = 0
+        total_m2_trat = 0
+        cliente_anterior = None
 
         for cliente in resultado:
-            # cliente_nome = cliente["cliente"].get("cliente", "")
-            # local = cliente["cliente"].get("local", "")
             cliente_nome = limpar_str(cliente["cliente"].get("cliente", ""))
             local = limpar_str(cliente["cliente"].get("local", ""))
 
             for enc in cliente["encomendas"]:
                 d = enc["dados"]
                 linhas = enc["linhas"]
+                tratamento_enc = str(d.get("tratamento", "") or "").strip()
+
+                # Quando muda o tratamento, insere linha de totais do anterior
+                if tratamento_atual is not None and tratamento_enc != tratamento_atual:
+                    elements.append(
+                        KeepTogether(
+                            [
+                                build_totais_tratamento(
+                                    tratamento_atual,
+                                    total_qtt_trat,
+                                    total_m2_trat,
+                                    styles,
+                                ),
+                                Spacer(1, 6),
+                                HRFlowable(
+                                    width="100%", thickness=1.2, color=colors.black
+                                ),
+                                Spacer(1, 10),
+                            ]
+                        )
+                    )
+                    total_qtt_trat = 0
+                    total_m2_trat = 0
+
+                tratamento_atual = tratamento_enc
+
+                # Acumula totais do tratamento atual
+                try:
+                    total_qtt_trat += float(d.get("qtt") or 0)
+                    total_m2_trat += float(d.get("m2") or 0)
+                except (TypeError, ValueError):
+                    pass
 
                 flowables = []
 
-                # Cliente + Local
-                cliente_table = Table(
-                    [
+                # Cliente + Local — só mostra quando muda de cliente
+                if cliente_nome != cliente_anterior:
+                    cliente_table = Table(
                         [
-                            Paragraph(
-                                f"<b>{cliente_nome}</b>", styles["BodySmallBold"]
-                            ),
-                            Paragraph(f"<b>{str(local)}</b>", styles["BodySmallBold"]),
-                        ]
-                    ],
-                    colWidths=[300, 200],
-                )
-                cliente_table.setStyle(
-                    TableStyle(
-                        [
-                            ("ALIGN", (1, 0), (1, 0), "RIGHT"),
-                            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                        ]
+                            [
+                                Paragraph(
+                                    f"<b>{cliente_nome}</b>", styles["BodySmallBold"]
+                                ),
+                                Paragraph(
+                                    f"<b>{str(local)}</b>", styles["BodySmallBold"]
+                                ),
+                            ]
+                        ],
+                        colWidths=[300, 200],
                     )
-                )
-                flowables += [cliente_table, Spacer(1, 4)]
+                    cliente_table.setStyle(
+                        TableStyle(
+                            [
+                                ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                            ]
+                        )
+                    )
+                    flowables += [cliente_table, Spacer(1, 4)]
+                    cliente_anterior = cliente_nome
 
                 data_ori = d.get("dataobra")
                 try:
                     if data_ori:
-                        # Formata para DD-MM-AAAA
                         data_f = pd.to_datetime(data_ori).strftime("%d-%m-%Y")
                     else:
                         data_f = ""
@@ -633,18 +681,17 @@ def imprimir_preview():
                     ],
                 ]
 
-                # Se houver descrição, adiciona logo abaixo do tratamento
                 descri = d.get("descri", "")
                 if descri:
                     data_encom.append(
                         [
                             "",
                             "",
-                            "",  # espaço nas primeiras duas colunas
+                            "",
                             Paragraph(
                                 f"<b><font size=7>{descri}</font></b>",
                                 styles["BodySmall"],
-                            ),  # menor e bold
+                            ),
                             "",
                             "",
                         ]
@@ -678,22 +725,15 @@ def imprimir_preview():
                 if linhas:
                     data = [["Artigo", "Descrição", "Qtd", "Medida", "Metros", "Área"]]
                     for l in linhas:
-                        # para não ter arredondamento nos m2
                         valor_area = (
                             l.get("u_mts2") if l.get("u_mts2") is not None else 0
                         )
-
                         val_float = float(valor_area)
-
                         valor_area_formatado = (
                             "{:.4f}".format(val_float).rstrip("0").rstrip(".")
                         )
-
-                        # design para não passar para cima de outros campos
                         design_limpa = limpar_str(l.get("design", ""))
-                        # descricao_p = Paragraph(str(l.get("design","") or ""), styles["BodySmall"])
                         descricao_p = Paragraph(design_limpa, styles["BodySmall"])
-
                         data.append(
                             [
                                 str(l.get("ref", "") or ""),
@@ -701,7 +741,6 @@ def imprimir_preview():
                                 format_num(l.get("qtt")),
                                 format_num(l.get("u_medida1", "")),
                                 format_num(l.get("u_mts")),
-                                # format_num(l.get("u_mts2"))
                                 valor_area_formatado,
                             ]
                         )
@@ -717,17 +756,17 @@ def imprimir_preview():
                                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                                 ("FONTNAME", (0, 1), (-1, -1), FONTE_BASE),
                                 ("FONTSIZE", (0, 1), (-1, -1), 8),
-                                ("ALIGN", (2, 1), (-1, -1), "RIGHT"),  # Qtd
-                                ("ALIGN", (3, 1), (-1, -1), "RIGHT"),  # Medida
-                                ("ALIGN", (4, 1), (-1, -1), "RIGHT"),  # Metros
-                                ("ALIGN", (5, 1), (-1, -1), "RIGHT"),  # Área
+                                ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
+                                ("ALIGN", (3, 1), (-1, -1), "RIGHT"),
+                                ("ALIGN", (4, 1), (-1, -1), "RIGHT"),
+                                ("ALIGN", (5, 1), (-1, -1), "RIGHT"),
                                 ("LEFTPADDING", (1, 0), (1, -1), 20),
                             ]
                         )
                     )
                     flowables += [linhas_table, Spacer(1, 6)]
 
-                # Totais
+                # Totais da encomenda
                 totais_table = Table(
                     [
                         [
@@ -753,6 +792,21 @@ def imprimir_preview():
                 ]
 
                 elements.append(KeepTogether(flowables))
+
+        # Totais do último tratamento
+        if tratamento_atual is not None:
+            elements.append(
+                KeepTogether(
+                    [
+                        build_totais_tratamento(
+                            tratamento_atual, total_qtt_trat, total_m2_trat, styles
+                        ),
+                        Spacer(1, 6),
+                        HRFlowable(width="100%", thickness=1.2, color=colors.black),
+                        Spacer(1, 10),
+                    ]
+                )
+            )
 
     doc.build(
         elements,
@@ -1122,6 +1176,37 @@ def cabecalho(canvas, doc, filtros):
     )  # separador final do header
 
 
+def build_totais_tratamento(nome_tratamento, total_qtt, total_m2, styles):
+    """Gera a linha de totais do tratamento (aparece no fim de cada grupo de tratamento)."""
+    totais_trat_table = Table(
+        [
+            [
+                Paragraph(f"<b>Total {nome_tratamento}</b>", styles["BodySmallBold"]),
+                Paragraph(
+                    f"<b>Total Qtd: {format_num(total_qtt)}    Total m2: {format_num(total_m2)}</b>",
+                    styles["BodySmallBold"],
+                ),
+            ]
+        ],
+        colWidths=[265, 265],
+    )
+    totais_trat_table.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (-1, -1), FONTE_BOLD),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("ALIGN", (0, 0), (0, 0), "LEFT"),
+                ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#e8e8e8")),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+    return totais_trat_table
+
+
 def format_num(value):
     try:
         num = float(value)
@@ -1164,42 +1249,76 @@ def imprimir():
 
     elements = []
 
+    # Controlo de totais por tratamento
+    tratamento_atual = None
+    total_qtt_trat = 0
+    total_m2_trat = 0
+    cliente_anterior = None
+
     for cliente in resultado:
-        # cliente_nome = cliente["cliente"].get("cliente", "")
-        # local = cliente["cliente"].get("local", "")
         cliente_nome = limpar_str(cliente["cliente"].get("cliente", ""))
         local = limpar_str(cliente["cliente"].get("local", ""))
 
         for enc in cliente["encomendas"]:
             d = enc["dados"]
             linhas = enc["linhas"]
+            tratamento_enc = str(d.get("tratamento", "") or "").strip()
+
+            # Quando muda o tratamento, insere linha de totais do anterior
+            if tratamento_atual is not None and tratamento_enc != tratamento_atual:
+                elements.append(
+                    KeepTogether(
+                        [
+                            build_totais_tratamento(
+                                tratamento_atual, total_qtt_trat, total_m2_trat, styles
+                            ),
+                            Spacer(1, 6),
+                            HRFlowable(width="100%", thickness=1.2, color=colors.black),
+                            Spacer(1, 10),
+                        ]
+                    )
+                )
+                total_qtt_trat = 0
+                total_m2_trat = 0
+
+            tratamento_atual = tratamento_enc
+
+            # Acumula totais do tratamento atual
+            try:
+                total_qtt_trat += float(d.get("qtt") or 0)
+                total_m2_trat += float(d.get("m2") or 0)
+            except (TypeError, ValueError):
+                pass
 
             flowables = []
 
-            # Cliente + Local
-            cliente_table = Table(
-                [
+            # Cliente + Local — só mostra quando muda de cliente
+            if cliente_nome != cliente_anterior:
+                cliente_table = Table(
                     [
-                        Paragraph(f"<b>{cliente_nome}</b>", styles["BodySmallBold"]),
-                        Paragraph(f"<b>{str(local)}</b>", styles["BodySmallBold"]),
-                    ]
-                ],
-                colWidths=[300, 200],
-            )
-            cliente_table.setStyle(
-                TableStyle(
-                    [
-                        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
-                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ]
+                        [
+                            Paragraph(
+                                f"<b>{cliente_nome}</b>", styles["BodySmallBold"]
+                            ),
+                            Paragraph(f"<b>{str(local)}</b>", styles["BodySmallBold"]),
+                        ]
+                    ],
+                    colWidths=[300, 200],
                 )
-            )
-            flowables += [cliente_table, Spacer(1, 4)]
+                cliente_table.setStyle(
+                    TableStyle(
+                        [
+                            ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ]
+                    )
+                )
+                flowables += [cliente_table, Spacer(1, 4)]
+                cliente_anterior = cliente_nome
 
             data_ori = d.get("dataobra")
             try:
                 if data_ori:
-                    # Formata para DD-MM-AAAA
                     data_f = pd.to_datetime(data_ori).strftime("%d-%m-%Y")
                 else:
                     data_f = ""
@@ -1219,17 +1338,16 @@ def imprimir():
                 ],
             ]
 
-            # Se houver descrição, adiciona logo abaixo do tratamento
             descri = d.get("descri", "")
             if descri:
                 data_encom.append(
                     [
                         "",
                         "",
-                        "",  # espaço nas primeiras duas colunas
+                        "",
                         Paragraph(
                             f"<b><font size=7>{descri}</font></b>", styles["BodySmall"]
-                        ),  # menor e bold
+                        ),
                         "",
                         "",
                     ]
@@ -1263,30 +1381,21 @@ def imprimir():
             if linhas:
                 data = [["Artigo", "Descrição", "Qtd", "Medida", "Metros", "Área"]]
                 for l in linhas:
-                    # Vamos buscar o valor, se for None assume 0
                     valor_area = l.get("u_mts2") if l.get("u_mts2") is not None else 0
-
                     val_float = float(valor_area)
-
                     valor_area_formatado = (
                         "{:.4f}".format(val_float).rstrip("0").rstrip(".")
                     )
-
                     design_limpa = limpar_str(l.get("design", ""))
-                    # para que a design não passe para cima da qtd
-                    # descricao_p = Paragraph(str(l.get("design","") or ""), styles["BodySmall"])
                     descricao_p = Paragraph(design_limpa, styles["BodySmall"])
-
                     data.append(
                         [
                             str(l.get("ref", "") or ""),
-                            # str(l.get("design","") or ""),
                             descricao_p,
                             format_num(l.get("qtt")),
                             format_num(l.get("u_medida1", "")),
                             format_num(l.get("u_mts")),
-                            # format_num(l.get("u_mts2"))
-                            valor_area_formatado,  # Força 4 casas decimais aqui
+                            valor_area_formatado,
                         ]
                     )
                 linhas_table = Table(
@@ -1301,17 +1410,17 @@ def imprimir():
                             ("VALIGN", (0, 0), (-1, -1), "TOP"),
                             ("FONTNAME", (0, 1), (-1, -1), FONTE_BASE),
                             ("FONTSIZE", (0, 1), (-1, -1), 8),
-                            ("ALIGN", (2, 1), (-1, -1), "RIGHT"),  # Qtd
-                            ("ALIGN", (3, 1), (-1, -1), "RIGHT"),  # Medida
-                            ("ALIGN", (4, 1), (-1, -1), "RIGHT"),  # Metros
-                            ("ALIGN", (5, 1), (-1, -1), "RIGHT"),  # Área
+                            ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
+                            ("ALIGN", (3, 1), (-1, -1), "RIGHT"),
+                            ("ALIGN", (4, 1), (-1, -1), "RIGHT"),
+                            ("ALIGN", (5, 1), (-1, -1), "RIGHT"),
                             ("LEFTPADDING", (1, 0), (1, -1), 20),
                         ]
                     )
                 )
                 flowables += [linhas_table, Spacer(1, 6)]
 
-            # Totais
+            # Totais da encomenda
             totais_table = Table(
                 [
                     [
@@ -1337,6 +1446,21 @@ def imprimir():
             ]
 
             elements.append(KeepTogether(flowables))
+
+    # Totais do último tratamento
+    if tratamento_atual is not None:
+        elements.append(
+            KeepTogether(
+                [
+                    build_totais_tratamento(
+                        tratamento_atual, total_qtt_trat, total_m2_trat, styles
+                    ),
+                    Spacer(1, 6),
+                    HRFlowable(width="100%", thickness=1.2, color=colors.black),
+                    Spacer(1, 10),
+                ]
+            )
+        )
 
     doc.build(
         elements,
@@ -1465,13 +1589,25 @@ def index():
 portugues = {"global.quitConfirmation": "Tem a certeza que deseja sair da aplicação?"}
 
 if __name__ == "__main__":
-    port = 5000
+    import socket
+    import time as _time
+
+    # criada função para garantir que não existe conflito no caso de abrir várias vezes a aplicação, encontrando uma porta livre dinamicamente
+    def encontrar_porta_livre():
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("127.0.0.1", 0))
+            return s.getsockname()[1]
+
+    port = encontrar_porta_livre()
 
     def start_flask():
         app.run(debug=False, port=port, use_reloader=False, threaded=True)
 
     # Corre Flask em segundo plano
     threading.Thread(target=start_flask, daemon=True).start()
+
+    # Pequena pausa para garantir que o Flask está pronto antes do webview abrir
+    _time.sleep(0.5)
 
     # Abre numa janela nativa (sem precisar do Chrome/Edge)
     webview.create_window("Encomendas", f"http://127.0.0.1:{port}", confirm_close=True)
