@@ -406,8 +406,9 @@
                             </div>`;
 
                     clientes.forEach(c => {
-                        html += `<div class="tree-item-sub p-2" onclick="filtrar(this, '${nomeTratamento}', '${nomeTratamento}', '${c}')" style="cursor:pointer; font-size: 12px; border-bottom: 1px solid #eee;">
-                                <i class="bi bi-person"></i> ${c}
+                        const label = c.no ? `${c.nome} - ${c.no}` : c.nome;
+                        html += `<div class="tree-item-sub p-2" onclick="filtrar(this, '${nomeTratamento}', '${nomeTratamento}', '${c.nome}')" style="cursor:pointer; font-size: 12px; border-bottom: 1px solid #eee;">
+                                <i class="bi bi-person"></i> ${label}
                             </div>`;
                     });
                     subTree.innerHTML = html;

@@ -37,7 +37,6 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas as pdf_canvas
 
-
 ## BTX - RG - Listagem Encomendas
 
 app = Flask(__name__)
@@ -502,7 +501,16 @@ def get_clientes_tratamento():
                 filtros.get("linha") or "",
             ),
         )
-        clientes = [row[0].strip() for row in cursor.fetchall() if row[0]]
+        clientes = []
+        for row in cursor.fetchall():
+            if not row[0]:
+                continue
+            nome = row[0].strip()
+            try:
+                no = str(row[2]) if len(row) > 2 and row[2] else ""
+            except Exception:
+                no = ""
+            clientes.append({"nome": nome, "no": no})
         cursor.close()
         conn.close()
     except Exception as e:
@@ -557,15 +565,15 @@ def imprimir_preview():
     styles = getSampleStyleSheet()
     styles.add(
         ParagraphStyle(
-            name="BodySmallBold", fontSize=9, leading=11, fontName=FONTE_BOLD
+            name="BodySmallBold", fontSize=11, leading=13, fontName=FONTE_BOLD
         )
     )
     styles.add(
-        ParagraphStyle(name="BodySmall", fontSize=8, leading=10, fontName=FONTE_BASE)
+        ParagraphStyle(name="BodySmall", fontSize=10, leading=12, fontName=FONTE_BASE)
     )
     styles.add(
         ParagraphStyle(
-            name="Aviso", fontSize=14, leading=16, alignment=1, textColor=colors.red
+            name="Aviso", fontSize=16, leading=18, alignment=1, textColor=colors.red
         )
     )
 
@@ -593,6 +601,9 @@ def imprimir_preview():
 
         for cliente in resultado:
             cliente_nome = limpar_str(cliente["cliente"].get("cliente", ""))
+            cliente_no = limpar_str(str(cliente["cliente"].get("no", "") or ""))
+            if cliente_no:
+                cliente_nome = f"{cliente_nome} - {cliente_no}"
             local = limpar_str(cliente["cliente"].get("local", ""))
 
             for enc in cliente["encomendas"]:
@@ -689,7 +700,7 @@ def imprimir_preview():
                             "",
                             "",
                             Paragraph(
-                                f"<b><font size=7>{descri}</font></b>",
+                                f"<b><font size=9>{descri}</font></b>",
                                 styles["BodySmall"],
                             ),
                             "",
@@ -704,10 +715,10 @@ def imprimir_preview():
                     TableStyle(
                         [
                             ("FONTNAME", (0, 0), (-1, 0), FONTE_BOLD),
-                            ("FONTSIZE", (0, 0), (-1, 0), 9),
+                            ("FONTSIZE", (0, 0), (-1, 0), 11),
                             ("ALIGN", (0, 0), (-1, 0), "CENTER"),
                             ("FONTNAME", (0, 1), (-1, -1), FONTE_BASE),
-                            ("FONTSIZE", (0, 1), (-1, -1), 8),
+                            ("FONTSIZE", (0, 1), (-1, -1), 10),
                             ("ALIGN", (0, 1), (1, -1), "LEFT"),
                             ("ALIGN", (2, 1), (2, -1), "CENTER"),
                             ("ALIGN", (3, 1), (3, -1), "CENTER"),
@@ -751,11 +762,11 @@ def imprimir_preview():
                         TableStyle(
                             [
                                 ("FONTNAME", (0, 0), (-1, 0), FONTE_BOLD),
-                                ("FONTSIZE", (0, 0), (-1, 0), 8),
+                                ("FONTSIZE", (0, 0), (-1, 0), 10),
                                 ("ALIGN", (0, 0), (-1, 0), "CENTER"),
                                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                                 ("FONTNAME", (0, 1), (-1, -1), FONTE_BASE),
-                                ("FONTSIZE", (0, 1), (-1, -1), 8),
+                                ("FONTSIZE", (0, 1), (-1, -1), 10),
                                 ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
                                 ("ALIGN", (3, 1), (-1, -1), "RIGHT"),
                                 ("ALIGN", (4, 1), (-1, -1), "RIGHT"),
@@ -780,7 +791,7 @@ def imprimir_preview():
                         [
                             ("FONTNAME", (0, 0), (-1, -1), FONTE_BOLD),
                             ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
-                            ("FONTSIZE", (0, 0), (-1, -1), 9),
+                            ("FONTSIZE", (0, 0), (-1, -1), 11),
                         ]
                     )
                 )
@@ -1194,7 +1205,7 @@ def build_totais_tratamento(nome_tratamento, total_qtt, total_m2, styles):
         TableStyle(
             [
                 ("FONTNAME", (0, 0), (-1, -1), FONTE_BOLD),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("FONTSIZE", (0, 0), (-1, -1), 11),
                 ("ALIGN", (0, 0), (0, 0), "LEFT"),
                 ("ALIGN", (1, 0), (1, 0), "RIGHT"),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -1240,11 +1251,11 @@ def imprimir():
     styles = getSampleStyleSheet()
     styles.add(
         ParagraphStyle(
-            name="BodySmallBold", fontSize=9, leading=11, fontName=FONTE_BOLD
+            name="BodySmallBold", fontSize=11, leading=13, fontName=FONTE_BOLD
         )
     )
     styles.add(
-        ParagraphStyle(name="BodySmall", fontSize=8, leading=10, fontName=FONTE_BASE)
+        ParagraphStyle(name="BodySmall", fontSize=10, leading=12, fontName=FONTE_BASE)
     )
 
     elements = []
@@ -1257,6 +1268,9 @@ def imprimir():
 
     for cliente in resultado:
         cliente_nome = limpar_str(cliente["cliente"].get("cliente", ""))
+        cliente_no = limpar_str(str(cliente["cliente"].get("no", "") or ""))
+        if cliente_no:
+            cliente_nome = f"{cliente_nome} - {cliente_no}"
         local = limpar_str(cliente["cliente"].get("local", ""))
 
         for enc in cliente["encomendas"]:
@@ -1346,7 +1360,7 @@ def imprimir():
                         "",
                         "",
                         Paragraph(
-                            f"<b><font size=7>{descri}</font></b>", styles["BodySmall"]
+                            f"<b><font size=9>{descri}</font></b>", styles["BodySmall"]
                         ),
                         "",
                         "",
@@ -1360,10 +1374,10 @@ def imprimir():
                 TableStyle(
                     [
                         ("FONTNAME", (0, 0), (-1, 0), FONTE_BOLD),
-                        ("FONTSIZE", (0, 0), (-1, 0), 9),
+                        ("FONTSIZE", (0, 0), (-1, 0), 11),
                         ("ALIGN", (0, 0), (-1, 0), "CENTER"),
                         ("FONTNAME", (0, 1), (-1, -1), FONTE_BASE),
-                        ("FONTSIZE", (0, 1), (-1, -1), 8),
+                        ("FONTSIZE", (0, 1), (-1, -1), 10),
                         ("ALIGN", (0, 1), (1, -1), "LEFT"),
                         ("ALIGN", (2, 1), (2, -1), "CENTER"),
                         ("ALIGN", (3, 1), (3, -1), "CENTER"),
@@ -1405,11 +1419,11 @@ def imprimir():
                     TableStyle(
                         [
                             ("FONTNAME", (0, 0), (-1, 0), FONTE_BOLD),
-                            ("FONTSIZE", (0, 0), (-1, 0), 8),
+                            ("FONTSIZE", (0, 0), (-1, 0), 10),
                             ("ALIGN", (0, 0), (-1, 0), "CENTER"),
                             ("VALIGN", (0, 0), (-1, -1), "TOP"),
                             ("FONTNAME", (0, 1), (-1, -1), FONTE_BASE),
-                            ("FONTSIZE", (0, 1), (-1, -1), 8),
+                            ("FONTSIZE", (0, 1), (-1, -1), 10),
                             ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
                             ("ALIGN", (3, 1), (-1, -1), "RIGHT"),
                             ("ALIGN", (4, 1), (-1, -1), "RIGHT"),
@@ -1434,7 +1448,7 @@ def imprimir():
                     [
                         ("FONTNAME", (0, 0), (-1, -1), FONTE_BOLD),
                         ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
-                        ("FONTSIZE", (0, 0), (-1, -1), 9),
+                        ("FONTSIZE", (0, 0), (-1, -1), 11),
                     ]
                 )
             )
@@ -1568,17 +1582,57 @@ def index():
             error_msg = f"Ocorreu um erro inesperado: {e}"
 
     # Preparar colunas e linhas para a tabela
+    LIMITE_GRELHA = 500
     columns = list(df.columns) if not df.empty else []
-    rows = df.values.tolist() if not df.empty else []
+    total_rows = len(df) if not df.empty else 0
+    rows = df.head(LIMITE_GRELHA).values.tolist() if not df.empty else []
+
+    # Carregar listas para os selects — vêm pré-preenchidos no HTML
+    linhas_lista, gamas_lista, tipos_lista, subtipos_lista = [], [], [], []
+    try:
+        conn2 = criar_conexao()
+        if conn2:
+            cur2 = conn2.cursor()
+            cur2.execute("SELECT DISTINCT linha, linha FROM u_tratamentos (NOLOCK)")
+            linhas_lista = [{"value": r[0], "label": r[1]} for r in cur2.fetchall()]
+            cur2.execute("SELECT DISTINCT gamacor, gamacor FROM u_tratamentos (NOLOCK)")
+            gamas_lista = [{"value": r[0], "label": r[1]} for r in cur2.fetchall()]
+            cur2.execute("SELECT DISTINCT tipo, tipo FROM u_tratamentos (NOLOCK)")
+            tipos_lista = [{"value": r[0], "label": r[1]} for r in cur2.fetchall()]
+            tipo_atual = filtros.get("tipo", "")
+            if tipo_atual:
+                cur2.execute(
+                    "SELECT DISTINCT subtipo, subtipo FROM u_tratamentos (NOLOCK) WHERE tipo = ?",
+                    (tipo_atual,),
+                )
+            else:
+                cur2.execute(
+                    "SELECT DISTINCT subtipo, subtipo FROM u_tratamentos (NOLOCK)"
+                )
+            subtipos_lista = [{"value": r[0], "label": r[1]} for r in cur2.fetchall()]
+            cur2.close()
+            conn2.close()
+        else:
+            print("[SELECTS] criar_conexao() devolveu None — configuração em falta?")
+    except Exception as e:
+        import traceback
+
+        print(f"[SELECTS] Erro ao carregar listas: {e}")
+        traceback.print_exc()
 
     # Renderiza o template, passando também a mensagem de erro
     return render_template(
         "index.html",
         columns=columns,
         rows=rows,
+        total_rows=total_rows,
         filtros=filtros,
         error_msg=error_msg,
         app_version=app_version,
+        linhas=linhas_lista,
+        gamas_cores=gamas_lista,
+        tipos_trat=tipos_lista,
+        subtipos_trat=subtipos_lista,
     )
 
 

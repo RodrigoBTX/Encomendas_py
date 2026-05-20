@@ -48,7 +48,7 @@
             height: 100%;
             background: rgba(255, 255, 255, 0.8);
             display: none;
-            /* Escondido por padrão */
+            pointer-events: none;
             z-index: 9999;
             justify-content: center;
             align-items: center;
@@ -168,24 +168,40 @@
                 <label class="form-label">Tipo</label>
                 <select class="form-select" id="tipo" name="tipo">
                     <option value=""></option>
+                    {% for item in tipos_trat %}
+                    <option value="{{ item.value }}" {% if item.value==filtros.tipo %}selected{% endif %}>{{ item.label
+                        }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Subtipo</label>
                 <select class="form-select" id="subtipo" name="subtipo">
                     <option value=""></option>
+                    {% for item in subtipos_trat %}
+                    <option value="{{ item.value }}" {% if item.value==filtros.subtipo %}selected{% endif %}>{{
+                        item.label }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Gama de cor</label>
                 <select class="form-select" id="gama_cor" name="gama_cor">
                     <option value=""></option>
+                    {% for item in gamas_cores %}
+                    <option value="{{ item.value }}" {% if item.value==filtros.gama_cor %}selected{% endif %}>{{
+                        item.label }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Linha</label>
                 <select class="form-select" id="linha" name="linha">
-                    <option value=""></option> <!-- Default vazio -->
+                    <option value=""></option>
+                    {% for item in linhas %}
+                    <option value="{{ item.value }}" {% if item.value==filtros.linha %}selected{% endif %}>{{ item.label
+                        }}</option>
+                    {% endfor %}
                 </select>
             </div>
 
@@ -270,6 +286,17 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                {% if total_rows > 500 %}
+                <div class="alert alert-warning mt-2 mb-0 py-2" style="font-size: 0.875rem;">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    A grelha mostra as primeiras <strong>500</strong> de <strong>{{ total_rows }}</strong> linhas. A
+                    pré-visualização e impressão incluem todos os registos.
+                </div>
+                {% else %}
+                <div class="text-muted mt-1 mb-0 py-1" style="font-size: 0.8rem;">
+                    Total: <strong>{{ total_rows }}</strong> registos
+                </div>
+                {% endif %}
             </div>
             {% else %}
             <div class="alert alert-warning">Sem resultados para os filtros selecionados.</div>
@@ -346,7 +373,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let currentInputId = "";
-        let filtrosJaCarregados = false;
 
         // --- GESTÃO DE UI (LOADING) ---
         function toggleSincronismo(estaCarregando) {
@@ -354,39 +380,19 @@
             const btnPreview = document.getElementById('btnImprimir');
 
             if (estaCarregando) {
-                if (overlay) overlay.style.display = 'flex';
+                if (overlay) {
+                    overlay.style.display = 'flex';
+                    overlay.style.pointerEvents = 'auto';
+                }
                 if (btnPreview) btnPreview.classList.add('disabled');
                 document.body.style.cursor = 'wait';
-
-                setTimeout(() => {
-                    if (overlay && overlay.style.display === 'flex') {
-                        toggleSincronismo(false);
-                    }
-                }, 20000);
             } else {
-                if (overlay) overlay.style.display = 'none';
+                if (overlay) {
+                    overlay.style.display = 'none';
+                    overlay.style.pointerEvents = 'none';
+                }
                 if (btnPreview) btnPreview.classList.remove('disabled');
                 document.body.style.cursor = 'default';
-            }
-        }
-
-        // --- CARREGAMENTO DE DADOS (FILTROS) ---
-        async function carregarFiltrosIniciais() {
-            if (filtrosJaCarregados) return;
-
-            try {
-                await Promise.all([
-                    loadLinhas(),
-                    loadGamasCores(),
-                    loadTiposTrat()
-                ]);
-
-                const tipoAtual = document.getElementById('tipo').value;
-                if (tipoAtual) await loadSubtipos(tipoAtual);
-
-                filtrosJaCarregados = true;
-            } catch (e) {
-                console.error("Erro ao carregar filtros iniciais:", e);
             }
         }
 
@@ -451,61 +457,7 @@
             });
         }
 
-        // --- LINHAS, GAMAS, TIPOS ---
-        function loadLinhas() {
-            return fetch('/linhas')
-                .then(response => response.json())
-                .then(data => {
-                    let select = document.getElementById('linha');
-                    if (!select) return;
-                    select.innerHTML = '<option value=""></option>';
-                    const linhaSelecionada = "{{ filtros.linha|safe }}";
-                    data.forEach(item => {
-                        let opt = document.createElement('option');
-                        opt.value = item.value;
-                        opt.textContent = item.label;
-                        if (item.value == linhaSelecionada) opt.selected = true;
-                        select.appendChild(opt);
-                    });
-                });
-        }
-
-        function loadGamasCores() {
-            return fetch('/gamas_cores')
-                .then(response => response.json())
-                .then(data => {
-                    let select = document.getElementById('gama_cor');
-                    if (!select) return;
-                    select.innerHTML = '<option value=""></option>';
-                    const gamaSelecionada = "{{ filtros.gama_cor|safe }}";
-                    data.forEach(item => {
-                        let opt = document.createElement('option');
-                        opt.value = item.value;
-                        opt.textContent = item.label;
-                        if (item.value == gamaSelecionada) opt.selected = true;
-                        select.appendChild(opt);
-                    });
-                });
-        }
-
-        function loadTiposTrat() {
-            return fetch('/tipos_trat')
-                .then(response => response.json())
-                .then(data => {
-                    let select = document.getElementById('tipo');
-                    if (!select) return;
-                    select.innerHTML = '<option value=""></option>';
-                    const tipoSelecionado = "{{ filtros.tipo|safe }}";
-                    data.forEach(item => {
-                        let opt = document.createElement('option');
-                        opt.value = item.value;
-                        opt.textContent = item.label;
-                        if (item.value == tipoSelecionado) opt.selected = true;
-                        select.appendChild(opt);
-                    });
-                });
-        }
-
+        // --- SUBTIPO DINÂMICO (apenas ao mudar o tipo manualmente) ---
         function loadSubtipos(tipoPai) {
             const selectSubtipo = document.getElementById('subtipo');
             if (!selectSubtipo) return;
@@ -513,20 +465,17 @@
                 .then(response => response.json())
                 .then(data => {
                     selectSubtipo.innerHTML = '<option value=""></option>';
-                    const subtipoGuardado = "{{ filtros.subtipo|safe }}";
                     data.forEach(item => {
                         let opt = document.createElement('option');
                         opt.value = item.value;
                         opt.textContent = item.label;
-                        if (item.value == subtipoGuardado) opt.selected = true;
                         selectSubtipo.appendChild(opt);
                     });
-                });
+                }).catch(() => { });
         }
 
         // --- FORMULÁRIO E PESQUISA ---
         function limparFiltros() {
-            filtrosJaCarregados = false;
             window.location.href = '/';
         }
 
@@ -570,37 +519,36 @@
 
         // para que quando a linha seja CRAV , altera logo os meus tratamentos, senão carrega uma lista demasiado grande 
         function verificarRegraCrav() {
-            const linhaSelect = document.getElementById('linha');
-            if (!linhaSelect) return;
+            // Regra CRAV desativada
+            // const linhaSelect = document.getElementById('linha');
+            // if (!linhaSelect) return;
 
-            // O .trim() remove os espaços invisíveis que vêm do SQL
-            const valorSelecionado = linhaSelect.value.trim();
+            // const valorSelecionado = linhaSelect.value.trim();
 
-            if (valorSelecionado === 'CRAV') {
-                const campoIni = document.querySelector('input[name="trat_ini"]');
-                const campoFin = document.querySelector('input[name="trat_fin"]');
+            // if (valorSelecionado === 'CRAV') {
+            //     const campoIni = document.querySelector('input[name="trat_ini"]');
+            //     const campoFin = document.querySelector('input[name="trat_fin"]');
 
-                if (campoIni) campoIni.value = 'Crava';
-                if (campoFin) campoFin.value = 'Crava';
-
-                // console.log("Regra CRAV aplicada com sucesso (espaços removidos)!");
-            }
+            //     if (campoIni) campoIni.value = 'Crava';
+            //     if (campoFin) campoFin.value = 'Crava';
+            // }
         }
 
 
         window.onload = function () {
-            toggleSincronismo(false);
-
-            carregarFiltrosIniciais().then(() => {
-                verificarRegraCrav();
-            });
+            // Overlay desligado imediatamente — selects já vêm preenchidos pelo servidor
+            const overlay = document.getElementById('loading-overlay');
+            if (overlay) {
+                overlay.style.display = 'none';
+                overlay.style.pointerEvents = 'none';
+            }
+            document.body.style.cursor = 'default';
 
             document.getElementById('linha').addEventListener('change', verificarRegraCrav);
 
             document.getElementById('tipo').addEventListener('change', function () {
                 loadSubtipos(this.value);
             });
-
 
             const btnImp = document.getElementById('btnImprimir');
             if (btnImp) {
@@ -627,7 +575,10 @@
                         btnPesq.disabled = true;
                         btnPesq.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
                     }
-                    document.getElementById('loading-overlay').style.display = 'flex';
+                    if (overlay) {
+                        overlay.style.display = 'flex';
+                        overlay.style.pointerEvents = 'auto';
+                    }
                     document.body.style.cursor = 'wait';
                 });
             }
