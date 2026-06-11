@@ -293,7 +293,9 @@
 
             <div class="search-container">
                 <i class="bi bi-search"></i>
-                <input type="text" id="searchTratamento" placeholder="Procurar tratamento..." onkeyup="filtrarLista()">
+                <input type="text" id="searchTratamento"
+                    placeholder="{% if ordem == '1' %}Procurar cliente...{% else %}Procurar tratamento...{% endif %}"
+                    onkeyup="filtrarLista()">
             </div>
         </div>
 
@@ -302,6 +304,18 @@
                 <i class="bi bi-files"></i>
                 <span>Todos os Registos</span>
             </div>
+            {% if ordem == '1' %}
+            {% for c in clientes_lateral %}
+            <div class="tree-group">
+                <div class="tree-item" onclick="expandirCliente(this, '{{ c.nome | replace("'", "\\'") }}')">
+                    <i class="bi bi-person"></i> {{ c.nome }}{% if c.no %} - {{ c.no }}{% endif %}
+                    <i class="bi bi-chevron-right ms-auto" style="font-size: 0.8rem;"></i>
+                </div>
+                <div class="sub-tree" style="display: none; padding-left: 20px; background: #f8f9fa;">
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
             {% for t in tratamentos %}
             <div class="tree-group">
                 <div class="tree-item" onclick="expandirTratamento(this, '{{ t }}')">
@@ -312,6 +326,7 @@
                 </div>
             </div>
             {% endfor %}
+            {% endif %}
         </div>
     </div>
 
@@ -493,6 +508,71 @@
         }
 
 
+    </script>
+    <script>
+        async function expandirCliente(el, nomeCliente) {
+            if (!nomeCliente) {
+                filtrar(el, '', '', '');
+                return;
+            }
+
+            const subTree = el.nextElementSibling;
+            const icon = el.querySelector('.bi-chevron-right');
+
+            if (subTree.style.display === "block") {
+                subTree.style.display = "none";
+                if (icon) icon.style.transform = "rotate(0deg)";
+                el.classList.remove('open');
+                return;
+            }
+
+            if (subTree.innerHTML.trim() === "") {
+                subTree.innerHTML = "<div class='p-2 text-muted' style='font-size: 11px;'><i class='bi bi-hourglass-split'></i> A carregar tratamentos...</div>";
+
+                try {
+                    const response = await fetch('/get_tratamentos_cliente?cliente=' + encodeURIComponent(nomeCliente));
+                    const tratamentos = await response.json();
+
+                    let html = '<div class="tree-item-sub p-2" onclick="filtrarCliente(this, \'' + nomeCliente.replace(/'/g, "\\'") + '\', \'\')" style="cursor:pointer; font-size: 12px; border-bottom: 1px solid #eee;"><i class="bi bi-collection"></i> <b>[Todos deste cliente]</b></div>';
+
+                    tratamentos.forEach(function (t) {
+                        html += '<div class="tree-item-sub p-2" onclick="filtrarCliente(this, \'' + nomeCliente.replace(/'/g, "\\'") + '\', \'' + t.replace(/'/g, "\\'") + '\')" style="cursor:pointer; font-size: 12px; border-bottom: 1px solid #eee;"><i class="bi bi-folder2"></i> ' + t + '</div>';
+                    });
+
+                    subTree.innerHTML = html;
+                } catch (error) {
+                    subTree.innerHTML = "<div class='p-2 text-danger' style='font-size: 11px;'>Erro ao carregar.</div>";
+                }
+            }
+
+            subTree.style.display = "block";
+            if (icon) icon.style.transform = "rotate(90deg)";
+            el.classList.add('open');
+        }
+
+        function filtrarCliente(el, nomeCliente, tratamento) {
+            const msg = document.getElementById('placeholder-msg');
+            if (msg) msg.style.display = 'none';
+
+            document.querySelectorAll('.tree-item, .tree-item-sub').forEach(function (i) { i.classList.remove('active'); });
+            el.classList.add('active');
+
+            const loading = document.getElementById('loading');
+            if (loading) loading.style.display = 'flex';
+
+            let url = new URL('/imprimir_preview', window.location.origin);
+            url.searchParams.set('cliente_especifico', nomeCliente);
+            if (tratamento !== '') {
+                url.searchParams.set('trat_ini', tratamento);
+                url.searchParams.set('trat_fin', tratamento);
+            }
+            url.searchParams.set('v', new Date().getTime());
+
+            const frame = document.getElementById('pdfFrame');
+            if (frame) frame.src = url.href;
+
+            if (window.event) window.event.stopPropagation();
+        }
     </script>
 </body>
 

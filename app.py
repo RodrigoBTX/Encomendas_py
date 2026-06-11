@@ -470,7 +470,49 @@ def visualizar_relatorio():
         print(f"Erro ao carregar tratamentos lateral: {e}")
         tratamentos = []
 
-    return render_template("preview_crystal.html", tratamentos=tratamentos)
+    ordem = filtros.get("ordem", "2")
+
+    # Se ordem == 1 (Cliente/Tratamento), carrega clientes para a sidebar
+    clientes_lateral = []
+    if ordem == "1":
+        try:
+            conn2 = criar_conexao()
+            cursor2 = conn2.cursor()
+            cursor2.execute(
+                "EXEC sp_listar_clientes @data_ini=?, @data_fin=?, @cliente_ini=?, @cliente_fin=?, @trat_ini=?, @trat_fin=?, @req=?, @enc_ini=?, @enc_fin=?, @tipo=?, @subtipo=?, @gamacor=?, @linha=?",
+                (
+                    filtros.get("data_ini"),
+                    filtros.get("data_fin"),
+                    filtros.get("cliente_ini") or "",
+                    filtros.get("cliente_fin") or "zzzzzz",
+                    filtros.get("trat_ini") or "",
+                    filtros.get("trat_fin") or "zzzzzz",
+                    filtros.get("requisicao") or "",
+                    filtros.get("enc_ini") or 0,
+                    filtros.get("enc_fin") or 999999999,
+                    filtros.get("tipo") or "",
+                    filtros.get("subtipo") or "",
+                    filtros.get("gama_cor") or "",
+                    filtros.get("linha") or "",
+                ),
+            )
+            for row in cursor2.fetchall():
+                if not row[0]:
+                    continue
+                nome = row[0].strip()
+                no = str(row[2]) if len(row) > 2 and row[2] else ""
+                clientes_lateral.append({"nome": nome, "no": no})
+            cursor2.close()
+            conn2.close()
+        except Exception as e:
+            print(f"Erro ao carregar clientes lateral: {e}")
+
+    return render_template(
+        "preview_crystal.html",
+        tratamentos=tratamentos,
+        clientes_lateral=clientes_lateral,
+        ordem=ordem,
+    )
 
 
 # para lista de clientes na lateral do preview - ao clicar no tratamento
@@ -518,6 +560,44 @@ def get_clientes_tratamento():
         return jsonify([]), 500
 
     return jsonify(clientes)
+
+
+# para lista de tratamentos na lateral do preview - ao clicar no cliente (ordem Cliente/Tratamento)
+@app.route("/get_tratamentos_cliente")
+def get_tratamentos_cliente():
+    cliente = request.args.get("cliente")
+    filtros = session.get("filtros_preview", {})
+
+    tratamentos = []
+    try:
+        conn = criar_conexao()
+        cursor = conn.cursor()
+        cursor.execute(
+            "EXEC sp_listar_tratamentos @data_ini=?, @data_fin=?, @cliente_ini=?, @cliente_fin=?, @trat_ini=?, @trat_fin=?, @req=?, @enc_ini=?, @enc_fin=?, @tipo=?, @subtipo=?, @gamacor=?, @linha=?",
+            (
+                filtros.get("data_ini"),
+                filtros.get("data_fin"),
+                cliente,
+                cliente,
+                filtros.get("trat_ini") or "",
+                filtros.get("trat_fin") or "zzzzzz",
+                filtros.get("requisicao") or "",
+                filtros.get("enc_ini") or 0,
+                filtros.get("enc_fin") or 999999999,
+                filtros.get("tipo") or "",
+                filtros.get("subtipo") or "",
+                filtros.get("gama_cor") or "",
+                filtros.get("linha") or "",
+            ),
+        )
+        tratamentos = [row[0].strip() for row in cursor.fetchall() if row[0]]
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Erro ao buscar tratamentos: {e}")
+        return jsonify([]), 500
+
+    return jsonify(tratamentos)
 
 
 # rota replicada do imprimir
@@ -984,7 +1064,51 @@ def detalhe():
 
 # executar sps para a impressão
 def executar_sps(filtros):
-    # filtros = request.form.to_dict()
+
+    # --- DEBUG (descomentar para ativar logging em debug_sps.log) ---
+    # def fmt(v):
+    #     if v is None or v == "":
+    #         return "''"
+    #     return f"'{v}'"
+    #
+    # import datetime
+    # log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "debug_sps.log")
+    # log = open(log_path, "a", encoding="utf-8")
+    #
+    # def w(msg=""):
+    #     log.write(msg + "\n")
+    #     log.flush()
+    #
+    # w("\n" + "=" * 70)
+    # w(f"DEBUG executar_sps — {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    # w(f"  data_ini:    {filtros.get('data_ini')}")
+    # w(f"  data_fin:    {filtros.get('data_fin')}")
+    # w(f"  cliente_ini: {filtros.get('cliente_ini')}")
+    # w(f"  cliente_fin: {filtros.get('cliente_fin')}")
+    # w(f"  trat_ini:    {filtros.get('trat_ini')}")
+    # w(f"  trat_fin:    {filtros.get('trat_fin')}")
+    # w(f"  linha:       {filtros.get('linha')}")
+    # w(f"  tipo:        {filtros.get('tipo')}")
+    # w(f"  subtipo:     {filtros.get('subtipo')}")
+    # w(f"  gama_cor:    {filtros.get('gama_cor')}")
+    # w(f"  enc_ini:     {filtros.get('enc_ini')}")
+    # w(f"  enc_fin:     {filtros.get('enc_fin')}")
+    # w(f"  requisicao:  {filtros.get('requisicao')}")
+    # w(f"  ordem:       {filtros.get('ordem')}")
+    # w("-" * 70)
+    # w(
+    #     f"EXEC sp_clientes "
+    #     f"@data_ini={fmt(filtros.get('data_ini'))}, @data_fin={fmt(filtros.get('data_fin'))}, "
+    #     f"@cliente_ini={fmt(filtros.get('cliente_ini'))}, @cliente_fin={fmt(filtros.get('cliente_fin'))}, "
+    #     f"@trat_ini={fmt(filtros.get('trat_ini'))}, @trat_fin={fmt(filtros.get('trat_fin'))}, "
+    #     f"@req={fmt(filtros.get('requisicao'))}, "
+    #     f"@enc_ini={filtros.get('enc_ini') or 0}, @enc_fin={filtros.get('enc_fin') or 999999999}, "
+    #     f"@tipo={fmt(filtros.get('tipo'))}, @subtipo={fmt(filtros.get('subtipo'))}, "
+    #     f"@gamacor={fmt(filtros.get('gama_cor'))}, @linha={fmt(filtros.get('linha'))}, "
+    #     f"@ordem={filtros.get('ordem') or 1}"
+    # )
+    # w("=" * 70)
+    # --- FIM DEBUG ---
 
     try:
         conn = criar_conexao()
@@ -1020,6 +1144,7 @@ def executar_sps(filtros):
         )
         clientes = cursor.fetchall()
         clientes_cols = [c[0] for c in cursor.description]
+        # w(f">>> sp_clientes: {len(clientes)} registos\n")
 
         resultado = []
         for cliente in clientes:
@@ -1027,6 +1152,15 @@ def executar_sps(filtros):
             cliente_nome = cliente_dict.get("cliente")
             tratamento_cliente = cliente_dict.get("tratamento")
 
+            # w(
+            #     f"EXEC sp_encomendas "
+            #     f"@data_ini={fmt(filtros.get('data_ini'))}, @data_fin={fmt(filtros.get('data_fin'))}, "
+            #     f"@req={fmt(filtros.get('requisicao'))}, "
+            #     f"@enc_ini={filtros.get('enc_ini') or 0}, @enc_fin={filtros.get('enc_fin') or 999999999}, "
+            #     f"@tipo={fmt(filtros.get('tipo'))}, @subtipo={fmt(filtros.get('subtipo'))}, "
+            #     f"@gamacor={fmt(filtros.get('gama_cor'))}, @linha={fmt(filtros.get('linha'))}, "
+            #     f"@cliente={fmt(cliente_nome)}, @tratamento={fmt(tratamento_cliente)}"
+            # )
             cursor.execute(
                 """
                 EXEC sp_encomendas 
@@ -1053,18 +1187,25 @@ def executar_sps(filtros):
             )
             encomendas = cursor.fetchall()
             encomendas_cols = [c[0] for c in cursor.description]
+            # w(f">>> sp_encomendas: {len(encomendas)} registos")
 
             encomendas_data = []
             for enc in encomendas:
                 enc_dict = dict(zip(encomendas_cols, enc))
-                obrano_enc = enc_dict.get("obrano")  # número da encomenda
-                obranome_enc = enc_dict.get("obranome")  # requisição -> vai no @req
+                obrano_enc = enc_dict.get("obrano")
+                obranome_enc = enc_dict.get("obranome")
                 trat_enc = enc_dict.get("tratamento")
                 cliente_nome = cliente_dict.get("cliente")
-                micros_enc = enc_dict.get(
-                    "micro", 0
-                )  # micragem , para não duplicar encomendas e para apresentar linhas corretas
+                micros_enc = enc_dict.get("micro", 0)
 
+                # w(
+                #     f"  EXEC sp_linhas "
+                #     f"@req={fmt(obranome_enc)}, @enc={obrano_enc}, "
+                #     f"@tipo={fmt(filtros.get('tipo'))}, @subtipo={fmt(filtros.get('subtipo'))}, "
+                #     f"@gamacor={fmt(filtros.get('gama_cor'))}, @linha={fmt(filtros.get('linha'))}, "
+                #     f"@cliente={fmt(cliente_nome)}, @tratamento={fmt(trat_enc)}, "
+                #     f"@micros={micros_enc}"
+                # )
                 cursor.execute(
                     """
                     EXEC sp_linhas 
@@ -1089,18 +1230,23 @@ def executar_sps(filtros):
                 )
                 linhas = cursor.fetchall()
                 linhas_cols = [c[0] for c in cursor.description]
+                # w(f"  >>> sp_linhas: {len(linhas)} registos")
 
                 linhas_data = [dict(zip(linhas_cols, l)) for l in linhas]
-
                 encomendas_data.append({"dados": enc_dict, "linhas": linhas_data})
 
             resultado.append({"cliente": cliente_dict, "encomendas": encomendas_data})
+
+        # w(f"\n>>> TOTAL: {len(resultado)} clientes")
+        # w("=" * 70 + "\n")
+        # log.close()
 
         cursor.close()
         conn.close()
         return resultado
 
     except Exception as e:
+        # log.close()
         raise (Exception(f"Erro ao executar SPs: {e}"))
 
 
