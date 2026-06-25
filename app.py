@@ -332,7 +332,7 @@ def clientes():
     # conn = pyodbc.connect(conn_str)
     conn = criar_conexao()
     cursor = conn.cursor()
-    cursor.execute("SELECT nome FROM cl (NOLOCK) order by nome asc")
+    cursor.execute("exec sp_get_clientes")
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -1661,14 +1661,11 @@ def index():
     conn = criar_conexao()
     cursor = conn.cursor()
 
-    # Cliente ini/fim defaults
-    cursor.execute("SELECT TOP 1 nome FROM cl (NOLOCK) ORDER BY nome ASC")
-    row = cursor.fetchone()
-    cliente_ini_default = row[0] if row is not None else ""
-
-    cursor.execute("SELECT TOP 1 nome FROM cl (NOLOCK) ORDER BY nome DESC")
-    row = cursor.fetchone()
-    cliente_fin_default = row[0] if row is not None else ""
+    # Cliente ini/fim defaults via sp_get_clientes
+    cursor.execute("EXEC sp_get_clientes")
+    clientes_default = [row[0] for row in cursor.fetchall() if row[0]]
+    cliente_ini_default = clientes_default[0] if clientes_default else ""
+    cliente_fin_default = clientes_default[-1] if clientes_default else ""
 
     # Tratamento ini/fim defaults
     cursor.execute(
