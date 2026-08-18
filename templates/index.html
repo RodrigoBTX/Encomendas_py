@@ -195,6 +195,16 @@
                 </select>
             </div>
             <div class="col-md-3">
+                <label class="form-label">Família</label>
+                <select class="form-select" id="familia" name="familia">
+                    <option value=""></option>
+                    {% for item in familias %}
+                    <option value="{{ item.value }}" {% if item.value==filtros.familia %}selected{% endif %}>{{
+                        item.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
                 <label class="form-label">Linha</label>
                 <select class="form-select" id="linha" name="linha">
                     <option value=""></option>
@@ -486,7 +496,7 @@
             const camposParaCopiar = [
                 'data_ini', 'data_fin', 'cliente_ini', 'cliente_fin',
                 'trat_ini', 'trat_fin', 'requisicao', 'enc_ini', 'enc_fin',
-                'tipo', 'subtipo', 'gama_cor', 'linha'
+                'tipo', 'subtipo', 'gama_cor', 'familia', 'linha'
             ];
 
             camposParaCopiar.forEach(nomeCampo => {
@@ -594,7 +604,7 @@
             const idsDosCampos = [
                 'data_ini', 'data_fin', 'cliente_ini', 'cliente_fin',
                 'trat_ini', 'trat_fin', 'linha', 'requisicao',
-                'enc_ini', 'enc_fin', 'tipo', 'subtipo', 'gama_cor', 'ordem'
+                'enc_ini', 'enc_fin', 'tipo', 'subtipo', 'gama_cor', 'familia', 'ordem'
             ];
 
             idsDosCampos.forEach(id => {

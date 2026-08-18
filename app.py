@@ -151,7 +151,7 @@ def get_encomendas(filtros):
             @req=?, 
             @enc_ini=?, @enc_fin=?, 
             @tipo=?, @subtipo=?, 
-            @gamacor=?, @linha=?, @ordem=?
+            @gamacor=?, @linha=?, @ordem=? ,@familia=? 
             
         """,
             (
@@ -169,6 +169,7 @@ def get_encomendas(filtros):
                 filtros.get("gama_cor"),
                 filtros.get("linha"),
                 filtros.get("ordem"),
+                filtros.get("familia") or "",
             ),
         )
 
@@ -366,6 +367,21 @@ def gamas_cores():
     return jsonify([{"value": r[0], "label": r[1]} for r in rows])
 
 
+@app.route("/familias")
+@lru_cache(maxsize=1)
+def familias():
+    conn = criar_conexao()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT nome, nome FROM stfami (NOLOCK) WHERE nome <> '' ORDER BY ref ASC"
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    return jsonify([{"value": r[0], "label": r[1]} for r in rows])
+
+
 @app.route("/tipos_trat")
 @lru_cache(maxsize=1)
 def tipos_trat():
@@ -443,7 +459,7 @@ def visualizar_relatorio():
         cursor = conn.cursor()
         # Filtramos tratamentos nulos ou vazios para a lista vir limpa
         cursor.execute(
-            "EXEC sp_listar_tratamentos @data_ini=?, @data_fin=?, @cliente_ini=?, @cliente_fin=?, @trat_ini=?, @trat_fin=?, @req=?, @enc_ini=?, @enc_fin=?, @tipo=?, @subtipo=?, @gamacor=?, @linha=?",
+            "EXEC sp_listar_tratamentos @data_ini=?, @data_fin=?, @cliente_ini=?, @cliente_fin=?, @trat_ini=?, @trat_fin=?, @req=?, @enc_ini=?, @enc_fin=?, @tipo=?, @subtipo=?, @gamacor=?, @linha=?, @familia=?",
             (
                 filtros.get("data_ini"),
                 filtros.get("data_fin"),
@@ -458,6 +474,7 @@ def visualizar_relatorio():
                 filtros.get("subtipo") or "",
                 filtros.get("gama_cor") or "",
                 filtros.get("linha") or "",
+                filtros.get("familia") or "",
             ),
         )
 
@@ -479,7 +496,7 @@ def visualizar_relatorio():
             conn2 = criar_conexao()
             cursor2 = conn2.cursor()
             cursor2.execute(
-                "EXEC sp_listar_clientes @data_ini=?, @data_fin=?, @cliente_ini=?, @cliente_fin=?, @trat_ini=?, @trat_fin=?, @req=?, @enc_ini=?, @enc_fin=?, @tipo=?, @subtipo=?, @gamacor=?, @linha=?",
+                "EXEC sp_listar_clientes @data_ini=?, @data_fin=?, @cliente_ini=?, @cliente_fin=?, @trat_ini=?, @trat_fin=?, @req=?, @enc_ini=?, @enc_fin=?, @tipo=?, @subtipo=?, @gamacor=?, @linha=?, @familia=?",
                 (
                     filtros.get("data_ini"),
                     filtros.get("data_fin"),
@@ -494,6 +511,7 @@ def visualizar_relatorio():
                     filtros.get("subtipo") or "",
                     filtros.get("gama_cor") or "",
                     filtros.get("linha") or "",
+                    filtros.get("familia") or "",
                 ),
             )
             for row in cursor2.fetchall():
@@ -526,7 +544,7 @@ def get_clientes_tratamento():
         conn = criar_conexao()
         cursor = conn.cursor()
         cursor.execute(
-            "EXEC sp_listar_clientes @data_ini=?, @data_fin=?, @cliente_ini=?, @cliente_fin=?, @trat_ini=?, @trat_fin=?, @req=?, @enc_ini=?, @enc_fin=?, @tipo=?, @subtipo=?, @gamacor=?, @linha=?",
+            "EXEC sp_listar_clientes @data_ini=?, @data_fin=?, @cliente_ini=?, @cliente_fin=?, @trat_ini=?, @trat_fin=?, @req=?, @enc_ini=?, @enc_fin=?, @tipo=?, @subtipo=?, @gamacor=?, @linha=?, @familia=?",
             (
                 filtros.get("data_ini"),
                 filtros.get("data_fin"),
@@ -541,6 +559,7 @@ def get_clientes_tratamento():
                 filtros.get("subtipo") or "",
                 filtros.get("gama_cor") or "",
                 filtros.get("linha") or "",
+                filtros.get("familia") or "",
             ),
         )
         clientes = []
@@ -573,7 +592,7 @@ def get_tratamentos_cliente():
         conn = criar_conexao()
         cursor = conn.cursor()
         cursor.execute(
-            "EXEC sp_listar_tratamentos @data_ini=?, @data_fin=?, @cliente_ini=?, @cliente_fin=?, @trat_ini=?, @trat_fin=?, @req=?, @enc_ini=?, @enc_fin=?, @tipo=?, @subtipo=?, @gamacor=?, @linha=?",
+            "EXEC sp_listar_tratamentos @data_ini=?, @data_fin=?, @cliente_ini=?, @cliente_fin=?, @trat_ini=?, @trat_fin=?, @req=?, @enc_ini=?, @enc_fin=?, @tipo=?, @subtipo=?, @gamacor=?, @linha=?, @familia=?",
             (
                 filtros.get("data_ini"),
                 filtros.get("data_fin"),
@@ -588,6 +607,7 @@ def get_tratamentos_cliente():
                 filtros.get("subtipo") or "",
                 filtros.get("gama_cor") or "",
                 filtros.get("linha") or "",
+                filtros.get("familia") or "",
             ),
         )
         tratamentos = [row[0].strip() for row in cursor.fetchall() if row[0]]
@@ -836,7 +856,7 @@ def imprimir_preview():
                             ]
                         )
                     linhas_table = Table(
-                        data, colWidths=[80, 190, 40, 60, 60, 60], repeatRows=1
+                        data, colWidths=[90, 180, 40, 60, 60, 60], repeatRows=1
                     )
                     linhas_table.setStyle(
                         TableStyle(
@@ -975,6 +995,7 @@ def detalhe():
             filtros.get("subtipo"),
             filtros.get("gama_cor"),
             filtros.get("linha"),
+            filtros.get("familia") or "",
         )
 
         # Carregar lista de clientes
@@ -1123,7 +1144,7 @@ def executar_sps(filtros):
                 @req=?, 
                 @enc_ini=?, @enc_fin=?, 
                 @tipo=?, @subtipo=?, 
-                @gamacor=?, @linha=?, @ordem=? 
+                @gamacor=?, @linha=?, @ordem=? , @familia=?  
         """,
             (
                 filtros.get("data_ini"),
@@ -1140,6 +1161,7 @@ def executar_sps(filtros):
                 filtros.get("gama_cor"),
                 filtros.get("linha"),
                 filtros.get("ordem") or 1,
+                filtros.get("familia") or "",
             ),
         )
         clientes = cursor.fetchall()
@@ -1169,7 +1191,8 @@ def executar_sps(filtros):
                     @enc_ini=?, @enc_fin=?, 
                     @tipo=?, @subtipo=?, 
                     @gamacor=?, @linha=?, 
-                    @cliente=?, @tratamento=? 
+                    @cliente=?, @tratamento=?
+                    , @familia=? 
             """,
                 (
                     filtros.get("data_ini"),
@@ -1183,6 +1206,7 @@ def executar_sps(filtros):
                     filtros.get("linha"),
                     cliente_nome,
                     tratamento_cliente,
+                    filtros.get("familia") or "",
                 ),
             )
             encomendas = cursor.fetchall()
@@ -1212,7 +1236,7 @@ def executar_sps(filtros):
                         @req=?, 
                         @enc=?, 
                         @tipo=?, @subtipo=?, 
-                        @gamacor=?, @linha=?, 
+                        @gamacor=?, @linha=?, @familia=?, 
                         @cliente=?, @tratamento=?, 
                         @micros=?
                 """,
@@ -1223,6 +1247,7 @@ def executar_sps(filtros):
                         filtros.get("subtipo"),
                         filtros.get("gama_cor"),
                         filtros.get("linha"),
+                        filtros.get("familia") or "",
                         cliente_nome,
                         trat_enc,
                         micros_enc,
@@ -1559,7 +1584,7 @@ def imprimir():
                         ]
                     )
                 linhas_table = Table(
-                    data, colWidths=[80, 190, 40, 60, 60, 60], repeatRows=1
+                    data, colWidths=[90, 180, 40, 60, 60, 60], repeatRows=1
                 )
                 linhas_table.setStyle(
                     TableStyle(
@@ -1698,6 +1723,7 @@ def index():
         "gama_cor": "",
         "linha": "",
         "ordem": "2",  # default
+        "familia": "",
     }
 
     if request.method == "POST":
@@ -1731,7 +1757,13 @@ def index():
     rows = df.head(LIMITE_GRELHA).values.tolist() if not df.empty else []
 
     # Carregar listas para os selects — vêm pré-preenchidos no HTML
-    linhas_lista, gamas_lista, tipos_lista, subtipos_lista = [], [], [], []
+    linhas_lista, gamas_lista, tipos_lista, subtipos_lista, familias_lista = (
+        [],
+        [],
+        [],
+        [],
+        [],
+    )
     try:
         conn2 = criar_conexao()
         if conn2:
@@ -1753,6 +1785,16 @@ def index():
                     "SELECT DISTINCT subtipo, subtipo FROM u_tratamentos (NOLOCK)"
                 )
             subtipos_lista = [{"value": r[0], "label": r[1]} for r in cur2.fetchall()]
+            try:
+                cur2.execute(
+                    "SELECT nome, nome FROM stfami (NOLOCK) WHERE nome <> '' ORDER BY ref ASC"
+                )
+                familias_lista = [
+                    {"value": r[0], "label": r[1]} for r in cur2.fetchall()
+                ]
+                print(f"[FAMILIAS] Carregadas {len(familias_lista)} famílias")
+            except Exception as ef:
+                print(f"[FAMILIAS] Erro: {ef}")
             cur2.close()
             conn2.close()
         else:
@@ -1776,6 +1818,7 @@ def index():
         gamas_cores=gamas_lista,
         tipos_trat=tipos_lista,
         subtipos_trat=subtipos_lista,
+        familias=familias_lista,
     )
 
 
