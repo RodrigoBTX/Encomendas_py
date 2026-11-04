@@ -834,7 +834,17 @@ def imprimir_preview():
 
                 # Linhas
                 if linhas:
-                    data = [["Artigo", "Descrição", "Qtd", "Medida", "Metros", "Área"]]
+                    data = [
+                        [
+                            "Artigo",
+                            "Descrição",
+                            "Qtd",
+                            "Medida",
+                            "Metros",
+                            "Área",
+                            "Embal.",
+                        ]
+                    ]
                     for l in linhas:
                         valor_area = (
                             l.get("u_mts2") if l.get("u_mts2") is not None else 0
@@ -853,10 +863,11 @@ def imprimir_preview():
                                 format_num(l.get("u_medida1", "")),
                                 format_num(l.get("u_mts")),
                                 valor_area_formatado,
+                                limpar_str(l.get("emb")).strip(),
                             ]
                         )
                     linhas_table = Table(
-                        data, colWidths=[90, 180, 40, 60, 60, 60], repeatRows=1
+                        data, colWidths=[90, 180, 40, 55, 55, 60, 50], repeatRows=1
                     )
                     linhas_table.setStyle(
                         TableStyle(
@@ -870,7 +881,8 @@ def imprimir_preview():
                                 ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
                                 ("ALIGN", (3, 1), (-1, -1), "RIGHT"),
                                 ("ALIGN", (4, 1), (-1, -1), "RIGHT"),
-                                ("ALIGN", (5, 1), (-1, -1), "RIGHT"),
+                                ("ALIGN", (5, 1), (5, -1), "RIGHT"),
+                                ("ALIGN", (6, 1), (6, -1), "CENTER"),
                                 ("LEFTPADDING", (1, 0), (1, -1), 20),
                             ]
                         )
@@ -1000,13 +1012,15 @@ def detalhe():
 
         # Carregar lista de clientes
         cursor.execute(
-            "EXEC sp_listar_clientes " + ", ".join(["?"] * 13), params_comuns
+            "EXEC sp_listar_clientes " + ", ".join(["?"] * len(params_comuns)),
+            params_comuns,
         )
         clientes_lista = [str(row[0]) for row in cursor.fetchall() if row[0]]
 
         # Carregar lista de tratamentos
         cursor.execute(
-            "EXEC sp_listar_tratamentos " + ", ".join(["?"] * 13), params_comuns
+            "EXEC sp_listar_tratamentos " + ", ".join(["?"] * len(params_comuns)),
+            params_comuns,
         )
         tratamentos_lista = [str(row[0]) for row in cursor.fetchall() if row[0]]
 
@@ -1564,7 +1578,17 @@ def imprimir():
 
             # Linhas
             if linhas:
-                data = [["Artigo", "Descrição", "Qtd", "Medida", "Metros", "Área"]]
+                data = [
+                    [
+                        "Artigo",
+                        "Descrição",
+                        "Qtd",
+                        "Medida",
+                        "Metros",
+                        "Área",
+                        "Embal.",
+                    ]
+                ]
                 for l in linhas:
                     valor_area = l.get("u_mts2") if l.get("u_mts2") is not None else 0
                     val_float = float(valor_area)
@@ -1581,10 +1605,11 @@ def imprimir():
                             format_num(l.get("u_medida1", "")),
                             format_num(l.get("u_mts")),
                             valor_area_formatado,
+                            limpar_str(l.get("emb")).strip(),
                         ]
                     )
                 linhas_table = Table(
-                    data, colWidths=[90, 180, 40, 60, 60, 60], repeatRows=1
+                    data, colWidths=[90, 180, 40, 55, 55, 60, 50], repeatRows=1
                 )
                 linhas_table.setStyle(
                     TableStyle(
@@ -1598,7 +1623,8 @@ def imprimir():
                             ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
                             ("ALIGN", (3, 1), (-1, -1), "RIGHT"),
                             ("ALIGN", (4, 1), (-1, -1), "RIGHT"),
-                            ("ALIGN", (5, 1), (-1, -1), "RIGHT"),
+                            ("ALIGN", (5, 1), (5, -1), "RIGHT"),
+                            ("ALIGN", (6, 1), (6, -1), "CENTER"),
                             ("LEFTPADDING", (1, 0), (1, -1), 20),
                         ]
                     )
@@ -1792,7 +1818,7 @@ def index():
                 familias_lista = [
                     {"value": r[0], "label": r[1]} for r in cur2.fetchall()
                 ]
-                print(f"[FAMILIAS] Carregadas {len(familias_lista)} famílias")
+                # print(f"[FAMILIAS] Carregadas {len(familias_lista)} famílias")
             except Exception as ef:
                 print(f"[FAMILIAS] Erro: {ef}")
             cur2.close()
